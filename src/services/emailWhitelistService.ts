@@ -9,51 +9,33 @@ export interface WhitelistEmailConfig {
   isActive: boolean;
 }
 
-// Daftar email bawaan (Default Whitelist)
+// Daftar email resmi yang secara ketat diizinkan (Hanya 2 akun ini, email lain diblokir)
 export const DEFAULT_ALLOWED_EMAILS: WhitelistEmailConfig[] = [
   {
-    email: 'ikadek.satriawan@gmail.com',
-    name: 'I Kadek Satriawan, S.H.',
-    role: 'Kasi Intelijen',
-    unit: 'Seksi Intelijen Kejaksaan Negeri Tabanan',
-    nip: '19820514 200703 1 002',
-    note: 'Akun Utama Administrator / Kasi Intelijen',
-    isActive: true,
-  },
-  {
-    email: 'kasiintel.kejaritabanan@gmail.com',
+    email: 'hijau.kn.tabanan@gmail.com',
     name: 'Kasi Intelijen Kejari Tabanan',
     role: 'Kasi Intelijen',
     unit: 'Seksi Intelijen Kejaksaan Negeri Tabanan',
     nip: '19820514 200703 1 002',
-    note: 'Email Dinas Seksi Intelijen Tabanan',
+    note: 'Akun Pejabat Kasi Intelijen',
     isActive: true,
   },
   {
-    email: 'intelijen.kejaritabanan@gmail.com',
-    name: 'Operator Peta Intelijen',
-    role: 'Staf Intelijen',
-    unit: 'Operator Papan Peta Intelijen (PPI)',
-    nip: '19950312 201901 1 003',
-    note: 'Akun Operator Data Lapangan',
-    isActive: true,
-  },
-  {
-    email: 'kejaritabanan@gmail.com',
-    name: 'Admin Utama Kejaksaan Negeri Tabanan',
+    email: 'ikadek.satriawan@gmail.com',
+    name: 'I Kadek Satriawan, S.H. (Administrator)',
     role: 'Administrator',
-    unit: 'Kejaksaan Negeri Tabanan',
-    nip: '19800101 200501 1 001',
-    note: 'Akun Resmi Kejari Tabanan',
+    unit: 'Administrator Sistem Intelijen Kejaksaan Negeri Tabanan',
+    nip: '19820514 200703 1 001',
+    note: 'Akun Administrator Sistem',
     isActive: true,
   }
 ];
 
-// Storage key for whitelist
-const WHITELIST_STORAGE_KEY = 'auth:email_whitelist';
+// Storage key for whitelist (version 2 for strict migration)
+const WHITELIST_STORAGE_KEY = 'auth:email_whitelist_v2';
 
 /**
- * Mendapatkan daftar semua email yang diizinkan (dari storage lokal / default)
+ * Mendapatkan daftar semua email yang diizinkan
  */
 export function getAllowedEmailList(): WhitelistEmailConfig[] {
   try {
@@ -82,29 +64,40 @@ export function saveAllowedEmailList(list: WhitelistEmailConfig[]): void {
 }
 
 /**
- * Memeriksa apakah suatu email terdaftar dan aktif di Whitelist
+ * Normalisasi email untuk perbandingan
+ */
+function normalizeEmailStr(email: string): string {
+  let e = email.trim().toLowerCase();
+  if (e.endsWith('@gmail')) {
+    e = e + '.com';
+  }
+  return e;
+}
+
+/**
+ * Memeriksa apakah suatu email terdaftar dan aktif di Whitelist (Strict Enforce)
  */
 export function verifyEmailWhitelist(email: string): { 
   allowed: boolean; 
   config?: WhitelistEmailConfig;
   reason?: string;
 } {
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normalizeEmailStr(email);
   const list = getAllowedEmailList();
 
-  const match = list.find(item => item.email.trim().toLowerCase() === normalizedEmail);
+  const match = list.find(item => normalizeEmailStr(item.email) === normalizedEmail);
 
   if (!match) {
     return {
       allowed: false,
-      reason: `Email "${normalizedEmail}" belum terdaftar dalam daftar izin akses (Whitelist) Seksi Intelijen Kejari Tabanan.`
+      reason: `AKSES DITOLAK: Email "${email}" tidak memiliki hak akses. Hanya akun Kasi Intelijen dan Administrator yang diizinkan masuk ke sistem.`
     };
   }
 
   if (!match.isActive) {
     return {
       allowed: false,
-      reason: `Akses untuk email "${normalizedEmail}" sedang dinonaktifkan oleh Administrator.`
+      reason: `AKSES DITOLAK: Akun "${email}" sedang dinonaktifkan.`
     };
   }
 

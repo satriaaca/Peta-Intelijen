@@ -8,7 +8,11 @@ import {
   CheckCircle2, 
   Mail, 
   ShieldCheck, 
-  HelpCircle 
+  HelpCircle,
+  Copy,
+  Check,
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import { AppUser } from '../types';
 import { signInWithGoogleSSO, subscribeToAuthState } from '../services/firebase';
@@ -19,7 +23,12 @@ interface LoginGateProps {
 
 export default function LoginGate({ onLogin }: LoginGateProps) {
   const [errorMsg, setErrorMsg] = useState('');
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+
+  // Current domain / hostname
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
 
   // Subscribe to Firebase Auth state for automatic session restore
   useEffect(() => {
@@ -36,19 +45,34 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
     try {
       setIsGoogleLoading(true);
       setErrorMsg('');
+      setUnauthorizedDomain(null);
       const loggedInUser = await signInWithGoogleSSO();
       onLogin(loggedInUser);
     } catch (err: any) {
       console.error('Google SSO Error:', err);
-      if (err.code === 'auth/popup-closed-by-user') {
+      if (err.code === 'auth/unauthorized-domain') {
+        setUnauthorizedDomain(currentHost);
+        setErrorMsg(
+          `Domain "${currentHost}" belum didaftarkan di Firebase Authentication (Authorized Domains).`
+        );
+      } else if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg('Jendela login Google ditutup sebelum proses selesai.');
       } else if (err.code === 'auth/popup-blocked') {
         setErrorMsg('Jendela pop-up login diblokir oleh peramban. Silakan izinkan pop-up untuk situs ini.');
       } else {
-        setErrorMsg(err.message || 'Gagal masuk dengan Google. Pastikan email Anda sudah terdaftar di Whitelist.');
+        setErrorMsg(err.message || 'Akses ditolak. Pastikan Anda menggunakan akun resmi yang terdaftar.');
       }
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  // Handle copy hostname
+  const handleCopyHost = () => {
+    if (currentHost) {
+      navigator.clipboard.writeText(currentHost);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
     }
   };
 
@@ -103,23 +127,72 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
           </div>
 
           {/* Security Notice Pill */}
-          <div className="mb-6 p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-start gap-2.5 text-xs text-slate-300">
+          <div className="mb-5 p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-start gap-2.5 text-xs text-slate-300">
             <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div className="leading-relaxed">
-              <span className="font-semibold text-amber-300">Single Sign-On (SSO): </span>
-              Akses sistem terbatas khusus untuk petugas dan jaksa dengan alamat email terdaftar (*Whitelist*).
+              <span className="font-semibold text-amber-300">Akses Eksklusif Terbatas: </span>
+              Hanya akun resmi <span className="text-white font-semibold">Kasi Intelijen</span> dan <span className="text-white font-semibold">Administrator</span> yang memiliki hak akses. Semua email lain otomatis diblokir.
             </div>
           </div>
 
-          {/* Error Message Notice */}
-          {errorMsg && (
+          {/* Error Message & Authorized Domain Helper */}
+          {unauthorizedDomain ? (
+            <div className="mb-5 p-4 text-xs bg-amber-950/80 border border-amber-500/60 text-amber-100 rounded-xl shadow-lg animate-in fade-in duration-200 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-bold text-amber-300 text-sm">
+                    Domain Perlu Didaftarkan di Firebase
+                  </div>
+                  <p className="text-slate-300 mt-1 leading-relaxed">
+                    Firebase project Anda (<code className="text-amber-300 font-mono">tes-project-2b775</code>) mewajibkan domain ini diizinkan di Firebase Console.
+                  </p>
+                </div>
+              </div>
+
+              {/* Hostname to copy */}
+              <div className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-700 flex items-center justify-between gap-2">
+                <span className="font-mono text-[11px] text-amber-300 truncate select-all">
+                  {currentHost}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyHost}
+                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-[11px] flex items-center gap-1 shrink-0 cursor-pointer transition"
+                >
+                  {copiedDomain ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedDomain ? 'Tersalin!' : 'Salin'}</span>
+                </button>
+              </div>
+
+              {/* Steps to resolve */}
+              <div className="text-[11px] text-slate-300 space-y-1.5 pt-1 border-t border-slate-800">
+                <div className="font-semibold text-white">Langkah Mendaftarkan di Firebase:</div>
+                <ol className="list-decimal list-inside space-y-1 text-slate-300">
+                  <li>Buka Firebase Console project <span className="font-mono text-amber-300">tes-project-2b775</span>.</li>
+                  <li>Menu <span className="font-semibold text-white">Authentication</span> &rarr; tab <span className="font-semibold text-white">Settings</span> &rarr; <span className="font-semibold text-white">Authorized domains</span>.</li>
+                  <li>Klik <span className="font-semibold text-white">Add domain</span> &rarr; tempel domain di atas &rarr; Simpan.</li>
+                </ol>
+              </div>
+
+              <a
+                href="https://console.firebase.google.com/project/tes-project-2b775/authentication/settings"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+              >
+                <span>Buka Firebase Console Settings</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          ) : errorMsg ? (
             <div className="mb-5 p-3.5 text-xs bg-rose-950/90 border border-rose-800/90 text-rose-200 rounded-xl flex items-start gap-2.5 shadow-sm animate-in fade-in duration-200">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+              <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
               <div className="flex-1 leading-relaxed">{errorMsg}</div>
             </div>
-          )}
+          ) : null}
 
-          {/* Exclusive SSO Google Login Button */}
+          {/* Primary SSO Google Login Button */}
           <div className="space-y-4">
             <button
               type="button"
@@ -162,11 +235,11 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                <span>Gunakan akun Gmail / Google Workspace kedinasan</span>
+                <span>Hanya untuk akun Kasi Intelijen & Administrator</span>
               </div>
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Belum terdaftar? Hubungi Kasi Intelijen / Administrator</span>
+                <span>Pengguna lain tidak diizinkan masuk ke sistem</span>
               </div>
             </div>
           </div>
