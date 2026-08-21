@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered Intelijen Officers and SSO Users",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string" },
+        "unit": { "type": "string" },
+        "nip": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "email"]
+    },
+    "IntelligenceEntry": {
+      "title": "IntelligenceEntry",
+      "description": "Intel Report Entry D.IN 1-6",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "no": { "type": "string" },
+        "section": { "type": "string" },
+        "narrative": { "type": "string" },
+        "date": { "type": "string" },
+        "location": { "type": "string" },
+        "kecamatan": { "type": "string" }
+      },
+      "required": ["id", "section", "narrative", "kecamatan"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "UserProfile",
+      "description": "Collection of app users"
+    },
+    "intel_entries": {
+      "schema": "IntelligenceEntry",
+      "description": "Collection of intelligence reports"
+    }
+  }
+}

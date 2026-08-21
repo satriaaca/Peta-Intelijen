@@ -1,0 +1,6 @@
+{
+  "name": "Papan Peta Intelijen — Kejaksaan Negeri Tabanan",
+  "description": "Internal dashboard and 5W+1H reporting tool for District Attorney Intelligence Division (Kejari Tabanan)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
