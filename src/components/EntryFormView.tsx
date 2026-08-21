@@ -521,34 +521,44 @@ export default function EntryFormView({
 
             <div>
               <label className="block text-xs font-bold uppercase text-slate-300 mb-1.5">
-                Foto Dokumentasi Lapangan (Opsional)
+                Foto Dokumentasi Lapangan (Google Drive / Berkas)
               </label>
-              <div className="flex items-center gap-2">
-                <label className="flex-1 cursor-pointer bg-[#0F172A] hover:bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 flex items-center justify-center gap-1.5 truncate transition-colors">
-                  <Upload className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="truncate">{photoUrl ? 'Ganti Foto' : 'Unggah Foto'}</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
-                </label>
-                {photoUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setPhotoUrl('')}
-                    className="p-2 rounded-xl bg-rose-950 text-rose-400 border border-rose-800 hover:bg-rose-900 cursor-pointer"
-                    title="Hapus Foto"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={photoUrl.startsWith('data:') ? '' : photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="Tautan Google Drive (drive.google.com/...) atau URL Foto"
+                  className="w-full bg-[#0F172A] border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                />
+                <div className="flex items-center gap-2">
+                  <label className="flex-1 cursor-pointer bg-[#0F172A] hover:bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300 flex items-center justify-center gap-1.5 truncate transition-colors">
+                    <Upload className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="truncate">{photoUrl ? 'Ganti Berkas / Foto' : 'Unggah File Lokal'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUrl('')}
+                      className="p-1.5 rounded-xl bg-rose-950 text-rose-400 border border-rose-800 hover:bg-rose-900 cursor-pointer"
+                      title="Hapus Foto"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               {photoUrl && (
                 <div className="mt-2 flex items-center gap-2">
                   <img
                     src={photoUrl}
+                    referrerPolicy="no-referrer"
                     alt="Preview"
                     className="w-10 h-10 object-cover rounded-lg border border-slate-700"
                   />

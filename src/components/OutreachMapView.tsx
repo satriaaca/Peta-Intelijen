@@ -466,6 +466,7 @@ export default function OutreachMapView({
                       <div className="relative w-full h-24 rounded-lg overflow-hidden mb-2 bg-slate-900 border border-slate-800">
                         <img
                           src={item.photoUrl}
+                          referrerPolicy="no-referrer"
                           alt={item.tema_kegiatan}
                           className="w-full h-full object-cover hover:scale-105 transition-transform"
                         />
@@ -518,6 +519,7 @@ export default function OutreachMapView({
             <div className="rounded-xl overflow-hidden border border-slate-800 bg-[#0B1120]">
               <img
                 src={selectedPhoto.url}
+                referrerPolicy="no-referrer"
                 alt={selectedPhoto.title}
                 className="w-full max-h-[65vh] object-contain"
               />

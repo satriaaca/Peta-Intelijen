@@ -162,6 +162,7 @@ export default function DetailModal({ entry, onClose }: DetailModalProps) {
               <div className="rounded-xl overflow-hidden border border-slate-800 bg-[#0F172A]">
                 <img
                   src={entry.photoUrl}
+                  referrerPolicy="no-referrer"
                   alt="Dokumentasi Intelijen"
                   className="w-full max-h-64 object-contain"
                 />

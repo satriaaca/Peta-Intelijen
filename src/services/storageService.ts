@@ -1,13 +1,8 @@
 import { IntelligenceEntry, OutreachEntry, CaseStatEntry, SectionId, AppUser } from '../types';
 import { INITIAL_ENTRIES, INITIAL_OUTREACH, INITIAL_CASE_STATS } from './seedData';
+import { formatGoogleDriveImageUrl } from '../utils/gdrive';
 
-// Storage Key Contract:
-// entries:{section}:{id}
-// case-stats:{category}:{year}
-// outreach:{triwulan}:{id}
-// auth:session
-
-// Fallback in-memory/IndexedDB cache if window.storage is not available in development
+// In-memory fallback
 const inMemoryFallbackStore = new Map<string, string>();
 
 interface WindowStorageAPI {
@@ -24,7 +19,6 @@ function getStorageAPI(): WindowStorageAPI | null {
   return null;
 }
 
-// Low-level safe get
 export async function storageGet(key: string): Promise<string | null> {
   const api = getStorageAPI();
   if (api) {
@@ -41,7 +35,6 @@ export async function storageGet(key: string): Promise<string | null> {
   return inMemoryFallbackStore.get(key) || null;
 }
 
-// Low-level safe set
 export async function storageSet(key: string, value: string): Promise<void> {
   inMemoryFallbackStore.set(key, value);
   const api = getStorageAPI();
@@ -54,7 +47,6 @@ export async function storageSet(key: string, value: string): Promise<void> {
   }
 }
 
-// Low-level safe delete
 export async function storageDelete(key: string): Promise<void> {
   inMemoryFallbackStore.delete(key);
   const api = getStorageAPI();
@@ -67,161 +59,175 @@ export async function storageDelete(key: string): Promise<void> {
   }
 }
 
-// Low-level safe list
-export async function storageList(prefix: string = ''): Promise<string[]> {
-  const api = getStorageAPI();
-  if (api) {
-    try {
-      const res = await api.list({ prefix, shared: false });
-      if (res && Array.isArray(res.keys)) {
-        return res.keys;
-      }
-      if (res && Array.isArray(res)) {
-        return res;
-      }
-    } catch {
-      // Fallback below
-    }
-  }
-  return Array.from(inMemoryFallbackStore.keys()).filter((k) => k.startsWith(prefix));
-}
+// -------------------------------------------------------------
+// 1. INTELLIGENCE ENTRIES (POSTGRESQL DB WITH API)
+// -------------------------------------------------------------
 
-// Initialize seed data if storage is empty
-let isInitialized = false;
-
-export async function initializeStorage(): Promise<void> {
-  if (isInitialized) return;
-  
-  const initializedFlag = await storageGet('app:initialized');
-  if (!initializedFlag) {
-    // Populate Initial Intelligence entries
-    for (const entry of INITIAL_ENTRIES) {
-      const key = `entries:${entry.section}:${entry.id}`;
-      await storageSet(key, JSON.stringify(entry));
-    }
-    
-    // Populate Initial Outreach entries
-    for (const outreach of INITIAL_OUTREACH) {
-      const key = `outreach:${outreach.triwulan}:${outreach.id}`;
-      await storageSet(key, JSON.stringify(outreach));
-    }
-
-    // Populate Initial Case stats
-    for (const stat of INITIAL_CASE_STATS) {
-      const key = `case-stats:${stat.category}:${stat.year}`;
-      await storageSet(key, JSON.stringify(stat));
-    }
-
-    await storageSet('app:initialized', 'true');
-  }
-  isInitialized = true;
-}
-
-// High-level API for Intelligence Narrative Entries
 export async function getIntelligenceEntries(sectionFilter?: SectionId): Promise<IntelligenceEntry[]> {
-  await initializeStorage();
-  const prefix = sectionFilter ? `entries:${sectionFilter}:` : 'entries:';
-  const keys = await storageList(prefix);
-  
-  const entries: IntelligenceEntry[] = [];
-  for (const key of keys) {
-    if (key.startsWith('entries:')) {
-      const val = await storageGet(key);
-      if (val) {
-        try {
-          const parsed = JSON.parse(val) as IntelligenceEntry;
-          if (!sectionFilter || parsed.section === sectionFilter) {
-            entries.push(parsed);
-          }
-        } catch {
-          // ignore corrupted
-        }
+  try {
+    const url = sectionFilter 
+      ? `/api/intelligence?section=${encodeURIComponent(sectionFilter)}`
+      : '/api/intelligence';
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        // Normalize Google Drive images
+        return data.map((item: IntelligenceEntry) => ({
+          ...item,
+          photoUrl: item.photoUrl ? formatGoogleDriveImageUrl(item.photoUrl) : undefined,
+        }));
       }
     }
+  } catch (err) {
+    console.warn('[PostgreSQL] Failed to fetch intelligence entries from backend API, using local fallback:', err);
   }
 
-  // Sort by date descending
-  return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Fallback to initial seed if API is unreachable
+  let list = INITIAL_ENTRIES;
+  if (sectionFilter) {
+    list = list.filter((e) => e.section === sectionFilter);
+  }
+  return list;
 }
 
 export async function saveIntelligenceEntry(entry: IntelligenceEntry): Promise<void> {
-  await initializeStorage();
-  const key = `entries:${entry.section}:${entry.id}`;
-  await storageSet(key, JSON.stringify(entry));
+  // Normalize Google Drive URL before saving
+  const formattedEntry: IntelligenceEntry = {
+    ...entry,
+    photoUrl: entry.photoUrl ? formatGoogleDriveImageUrl(entry.photoUrl) : undefined,
+  };
+
+  try {
+    const res = await fetch('/api/intelligence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formattedEntry),
+    });
+
+    if (!res.ok) {
+      const errorJson = await res.json().catch(() => ({}));
+      throw new Error(errorJson.error || 'Gagal menyimpan ke PostgreSQL');
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL] Save error:', err);
+    // Cache locally as safety
+    const key = `entries:${entry.section}:${entry.id}`;
+    await storageSet(key, JSON.stringify(formattedEntry));
+  }
 }
 
 export async function deleteIntelligenceEntry(id: string, section: SectionId): Promise<void> {
-  const key = `entries:${section}:${id}`;
-  await storageDelete(key);
+  try {
+    const res = await fetch(`/api/intelligence/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Gagal menghapus data dari PostgreSQL');
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL] Delete error:', err);
+    const key = `entries:${section}:${id}`;
+    await storageDelete(key);
+  }
 }
 
-// High-level API for Outreach / Penkum Entries
+// -------------------------------------------------------------
+// 2. OUTREACH / JMS / PENKUM ENTRIES (POSTGRESQL DB WITH API)
+// -------------------------------------------------------------
+
 export async function getOutreachEntries(triwulanFilter?: number): Promise<OutreachEntry[]> {
-  await initializeStorage();
-  const prefix = triwulanFilter ? `outreach:${triwulanFilter}:` : 'outreach:';
-  const keys = await storageList(prefix);
-  
-  const entries: OutreachEntry[] = [];
-  for (const key of keys) {
-    if (key.startsWith('outreach:')) {
-      const val = await storageGet(key);
-      if (val) {
-        try {
-          const parsed = JSON.parse(val) as OutreachEntry;
-          if (!triwulanFilter || parsed.triwulan === triwulanFilter) {
-            entries.push(parsed);
-          }
-        } catch {
-          // ignore
-        }
+  try {
+    const url = triwulanFilter
+      ? `/api/outreach?triwulan=${encodeURIComponent(triwulanFilter)}`
+      : '/api/outreach';
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data.map((item: OutreachEntry) => ({
+          ...item,
+          photoUrl: item.photoUrl ? formatGoogleDriveImageUrl(item.photoUrl) : undefined,
+        }));
       }
     }
+  } catch (err) {
+    console.warn('[PostgreSQL] Failed to fetch outreach entries from backend API, using local fallback:', err);
   }
 
-  return entries.sort((a, b) => new Date(b.waktu).getTime() - new Date(a.waktu).getTime());
+  // Fallback to initial seed if API is unreachable
+  let list = INITIAL_OUTREACH;
+  if (triwulanFilter) {
+    list = list.filter((e) => e.triwulan === triwulanFilter);
+  }
+  return list;
 }
 
 export async function saveOutreachEntry(entry: OutreachEntry): Promise<void> {
-  await initializeStorage();
-  const key = `outreach:${entry.triwulan}:${entry.id}`;
-  await storageSet(key, JSON.stringify(entry));
+  // Normalize Google Drive URL before saving
+  const formattedEntry: OutreachEntry = {
+    ...entry,
+    photoUrl: entry.photoUrl ? formatGoogleDriveImageUrl(entry.photoUrl) : undefined,
+  };
+
+  try {
+    const res = await fetch('/api/outreach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formattedEntry),
+    });
+
+    if (!res.ok) {
+      const errorJson = await res.json().catch(() => ({}));
+      throw new Error(errorJson.error || 'Gagal menyimpan ke PostgreSQL');
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL] Save outreach error:', err);
+    const key = `outreach:${entry.triwulan}:${entry.id}`;
+    await storageSet(key, JSON.stringify(formattedEntry));
+  }
 }
 
 export async function deleteOutreachEntry(id: string, triwulan: number): Promise<void> {
-  const key = `outreach:${triwulan}:${id}`;
-  await storageDelete(key);
+  try {
+    const res = await fetch(`/api/outreach/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Gagal menghapus data dari PostgreSQL');
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL] Delete outreach error:', err);
+    const key = `outreach:${triwulan}:${id}`;
+    await storageDelete(key);
+  }
 }
 
-// High-level API for Case Statistics
-export async function getCaseStats(): Promise<CaseStatEntry[]> {
-  await initializeStorage();
-  const keys = await storageList('case-stats:');
-  const stats: CaseStatEntry[] = [];
+// -------------------------------------------------------------
+// 3. CASE STATS (LOADED VIA JAMPIDUM API)
+// -------------------------------------------------------------
 
-  for (const key of keys) {
-    if (key.startsWith('case-stats:')) {
-      const val = await storageGet(key);
-      if (val) {
-        try {
-          const parsed = JSON.parse(val) as CaseStatEntry;
-          stats.push(parsed);
-        } catch {
-          // ignore
-        }
-      }
+export async function getCaseStats(): Promise<CaseStatEntry[]> {
+  const cached = await storageGet('case-stats:cached');
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch {
+      // ignore
     }
   }
-
-  return stats.sort((a, b) => b.year - a.year || a.category.localeCompare(b.category));
+  return INITIAL_CASE_STATS;
 }
 
 export async function saveCaseStat(stat: CaseStatEntry): Promise<void> {
-  await initializeStorage();
   const key = `case-stats:${stat.category}:${stat.year}`;
   await storageSet(key, JSON.stringify(stat));
 }
 
-// User Session
+// -------------------------------------------------------------
+// 4. USER AUTH SESSION
+// -------------------------------------------------------------
+
 export async function getAppSession(): Promise<AppUser | null> {
   const val = await storageGet('auth:session');
   if (val) {
@@ -242,12 +248,14 @@ export async function saveAppSession(user: AppUser | null): Promise<void> {
   }
 }
 
-// Reset data to defaults
+// -------------------------------------------------------------
+// 5. DATABASE RESET
+// -------------------------------------------------------------
+
 export async function resetDatabaseToDefault(): Promise<void> {
-  const allKeys = await storageList('');
-  for (const key of allKeys) {
-    await storageDelete(key);
+  try {
+    await fetch('/api/db/reset', { method: 'POST' });
+  } catch (err) {
+    console.error('Reset database failed:', err);
   }
-  isInitialized = false;
-  await initializeStorage();
 }

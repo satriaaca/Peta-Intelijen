@@ -598,7 +598,7 @@ export default function OutreachFormView({
                           type="text"
                           value={photoUrl.startsWith('data:') ? '' : photoUrl}
                           onChange={(e) => setPhotoUrl(e.target.value)}
-                          placeholder="Masukkan tautan URL foto langsung (https://...)"
+                          placeholder="Tautan Google Drive (drive.google.com/...) atau URL Foto"
                           className="w-full bg-[#0B1120] border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200"
                         />
                       </div>
@@ -619,6 +619,7 @@ export default function OutreachFormView({
                       <div className="relative w-full h-24 rounded-lg overflow-hidden group">
                         <img
                           src={photoUrl}
+                          referrerPolicy="no-referrer"
                           alt="Dokumentasi Preview"
                           className="w-full h-full object-cover rounded-lg cursor-pointer"
                           onClick={() => setPreviewPhotoModal({
