@@ -27,9 +27,16 @@ export async function storageGet(key: string): Promise<string | null> {
       if (!res) return null;
       if (typeof res === 'string') return res;
       if (typeof res === 'object' && 'value' in res) return res.value;
-      return null;
     } catch {
-      return inMemoryFallbackStore.get(key) || null;
+      // fallback to localStorage
+    }
+  }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const val = localStorage.getItem(key);
+      if (val !== null) return val;
+    } catch {
+      // ignore
     }
   }
   return inMemoryFallbackStore.get(key) || null;
@@ -37,30 +44,44 @@ export async function storageGet(key: string): Promise<string | null> {
 
 export async function storageSet(key: string, value: string): Promise<void> {
   inMemoryFallbackStore.set(key, value);
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // ignore
+    }
+  }
   const api = getStorageAPI();
   if (api) {
     try {
       await api.set(key, value, { shared: false });
     } catch {
-      // Memory fallback holds the data
+      // Handled
     }
   }
 }
 
 export async function storageDelete(key: string): Promise<void> {
   inMemoryFallbackStore.delete(key);
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  }
   const api = getStorageAPI();
   if (api) {
     try {
       await api.delete(key, { shared: false });
     } catch {
-      // Handled in memory
+      // Handled
     }
   }
 }
 
 // -------------------------------------------------------------
-// 1. INTELLIGENCE ENTRIES (POSTGRESQL DB WITH API)
+// 1. INTELLIGENCE ENTRIES (POSTGRESQL DB WITH RESILIENT LOCAL CACHE)
 // -------------------------------------------------------------
 
 export async function getIntelligenceEntries(sectionFilter?: SectionId): Promise<IntelligenceEntry[]> {
@@ -69,21 +90,35 @@ export async function getIntelligenceEntries(sectionFilter?: SectionId): Promise
       ? `/api/intelligence?section=${encodeURIComponent(sectionFilter)}`
       : '/api/intelligence';
     const res = await fetch(url);
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
-      if (Array.isArray(data)) {
-        // Normalize Google Drive images
-        return data.map((item: IntelligenceEntry) => ({
+      if (Array.isArray(data) && data.length > 0) {
+        const formatted = data.map((item: IntelligenceEntry) => ({
           ...item,
           photoUrl: item.photoUrl ? formatGoogleDriveImageUrl(item.photoUrl) : undefined,
         }));
+        await storageSet('intel_entries:cached', JSON.stringify(formatted));
+        return sectionFilter ? formatted.filter((e) => e.section === sectionFilter) : formatted;
       }
     }
   } catch (err) {
-    console.warn('[PostgreSQL] Failed to fetch intelligence entries from backend API, using local fallback:', err);
+    console.warn('[Storage] API fetch failed for intelligence entries, using cache:', err);
   }
 
-  // Fallback to initial seed if API is unreachable
+  // Fallback to local storage cache
+  const cached = await storageGet('intel_entries:cached');
+  if (cached) {
+    try {
+      const list: IntelligenceEntry[] = JSON.parse(cached);
+      if (Array.isArray(list) && list.length > 0) {
+        return sectionFilter ? list.filter((e) => e.section === sectionFilter) : list;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   let list = INITIAL_ENTRIES;
   if (sectionFilter) {
     list = list.filter((e) => e.section === sectionFilter);
@@ -92,48 +127,67 @@ export async function getIntelligenceEntries(sectionFilter?: SectionId): Promise
 }
 
 export async function saveIntelligenceEntry(entry: IntelligenceEntry): Promise<void> {
-  // Normalize Google Drive URL before saving
   const formattedEntry: IntelligenceEntry = {
     ...entry,
     photoUrl: entry.photoUrl ? formatGoogleDriveImageUrl(entry.photoUrl) : undefined,
   };
 
+  // Update local cache immediately
+  try {
+    const current = await getIntelligenceEntries();
+    const existingIdx = current.findIndex((e) => e.id === entry.id);
+    let updated: IntelligenceEntry[];
+    if (existingIdx >= 0) {
+      updated = [...current];
+      updated[existingIdx] = formattedEntry;
+    } else {
+      updated = [formattedEntry, ...current];
+    }
+    await storageSet('intel_entries:cached', JSON.stringify(updated));
+  } catch (cacheErr) {
+    console.warn('[Storage] Failed to update local intel cache:', cacheErr);
+  }
+
+  // Sync to PostgreSQL backend
   try {
     const res = await fetch('/api/intelligence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formattedEntry),
     });
-
     if (!res.ok) {
-      const errorJson = await res.json().catch(() => ({}));
-      throw new Error(errorJson.error || 'Gagal menyimpan ke PostgreSQL');
+      console.warn('[Storage] Backend sync returned status:', res.status);
     }
   } catch (err: any) {
-    console.error('[PostgreSQL] Save error:', err);
-    // Cache locally as safety
-    const key = `entries:${entry.section}:${entry.id}`;
-    await storageSet(key, JSON.stringify(formattedEntry));
+    console.warn('[Storage] Backend sync error, entry saved in local storage:', err.message);
   }
 }
 
 export async function deleteIntelligenceEntry(id: string, section: SectionId): Promise<void> {
+  // Remove from local cache immediately
+  try {
+    const current = await getIntelligenceEntries();
+    const updated = current.filter((e) => e.id !== id);
+    await storageSet('intel_entries:cached', JSON.stringify(updated));
+  } catch (cacheErr) {
+    console.warn('[Storage] Failed to remove from local intel cache:', cacheErr);
+  }
+
+  // Delete from PostgreSQL backend
   try {
     const res = await fetch(`/api/intelligence/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
-      throw new Error('Gagal menghapus data dari PostgreSQL');
+      console.warn('[Storage] Backend delete returned status:', res.status);
     }
   } catch (err: any) {
-    console.error('[PostgreSQL] Delete error:', err);
-    const key = `entries:${section}:${id}`;
-    await storageDelete(key);
+    console.warn('[Storage] Backend delete error, entry removed from local storage:', err.message);
   }
 }
 
 // -------------------------------------------------------------
-// 2. OUTREACH / JMS / PENKUM ENTRIES (POSTGRESQL DB WITH API)
+// 2. OUTREACH / JMS / PENKUM ENTRIES (POSTGRESQL DB WITH RESILIENT LOCAL CACHE)
 // -------------------------------------------------------------
 
 export async function getOutreachEntries(triwulanFilter?: number): Promise<OutreachEntry[]> {
@@ -142,20 +196,35 @@ export async function getOutreachEntries(triwulanFilter?: number): Promise<Outre
       ? `/api/outreach?triwulan=${encodeURIComponent(triwulanFilter)}`
       : '/api/outreach';
     const res = await fetch(url);
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
-      if (Array.isArray(data)) {
-        return data.map((item: OutreachEntry) => ({
+      if (Array.isArray(data) && data.length > 0) {
+        const formatted = data.map((item: OutreachEntry) => ({
           ...item,
           photoUrl: item.photoUrl ? formatGoogleDriveImageUrl(item.photoUrl) : undefined,
         }));
+        await storageSet('outreach_entries:cached', JSON.stringify(formatted));
+        return triwulanFilter ? formatted.filter((e) => e.triwulan === triwulanFilter) : formatted;
       }
     }
   } catch (err) {
-    console.warn('[PostgreSQL] Failed to fetch outreach entries from backend API, using local fallback:', err);
+    console.warn('[Storage] API fetch failed for outreach entries, using cache:', err);
   }
 
-  // Fallback to initial seed if API is unreachable
+  // Fallback to local storage cache
+  const cached = await storageGet('outreach_entries:cached');
+  if (cached) {
+    try {
+      const list: OutreachEntry[] = JSON.parse(cached);
+      if (Array.isArray(list) && list.length > 0) {
+        return triwulanFilter ? list.filter((e) => e.triwulan === triwulanFilter) : list;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   let list = INITIAL_OUTREACH;
   if (triwulanFilter) {
     list = list.filter((e) => e.triwulan === triwulanFilter);
@@ -164,42 +233,67 @@ export async function getOutreachEntries(triwulanFilter?: number): Promise<Outre
 }
 
 export async function saveOutreachEntry(entry: OutreachEntry): Promise<void> {
-  // Normalize Google Drive URL before saving
   const formattedEntry: OutreachEntry = {
     ...entry,
     photoUrl: entry.photoUrl ? formatGoogleDriveImageUrl(entry.photoUrl) : undefined,
   };
 
+  // 1. Update local storage cache immediately so UI updates in real time
+  try {
+    const current = await getOutreachEntries();
+    const existingIdx = current.findIndex((e) => e.id === entry.id);
+    let updated: OutreachEntry[];
+    if (existingIdx >= 0) {
+      updated = [...current];
+      updated[existingIdx] = formattedEntry;
+    } else {
+      updated = [formattedEntry, ...current];
+    }
+    await storageSet('outreach_entries:cached', JSON.stringify(updated));
+  } catch (cacheErr) {
+    console.warn('[Storage] Failed to update local outreach cache:', cacheErr);
+  }
+
+  // 2. Sync to PostgreSQL backend
   try {
     const res = await fetch('/api/outreach', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formattedEntry),
     });
-
     if (!res.ok) {
-      const errorJson = await res.json().catch(() => ({}));
-      throw new Error(errorJson.error || 'Gagal menyimpan ke PostgreSQL');
+      console.warn('[Storage] Backend outreach save returned status:', res.status);
     }
   } catch (err: any) {
-    console.error('[PostgreSQL] Save outreach error:', err);
-    const key = `outreach:${entry.triwulan}:${entry.id}`;
-    await storageSet(key, JSON.stringify(formattedEntry));
+    console.warn('[Storage] Backend save error, entry stored in local storage:', err.message);
   }
 }
 
-export async function deleteOutreachEntry(id: string, triwulan: number): Promise<void> {
+export async function deleteOutreachEntry(id: string, _triwulan?: number): Promise<void> {
+  // 1. Remove from local storage cache immediately
+  try {
+    const current = await getOutreachEntries();
+    const updated = current.filter((e) => e.id !== id);
+    await storageSet('outreach_entries:cached', JSON.stringify(updated));
+  } catch (cacheErr) {
+    console.warn('[Storage] Failed to delete from local outreach cache:', cacheErr);
+  }
+
+  // 2. Delete from PostgreSQL backend
   try {
     const res = await fetch(`/api/outreach/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
-      throw new Error('Gagal menghapus data dari PostgreSQL');
+      // Try fallback delete with body
+      await fetch('/api/outreach', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).catch(() => {});
     }
   } catch (err: any) {
-    console.error('[PostgreSQL] Delete outreach error:', err);
-    const key = `outreach:${triwulan}:${id}`;
-    await storageDelete(key);
+    console.warn('[Storage] Backend delete error, entry deleted locally:', err.message);
   }
 }
 
@@ -211,7 +305,8 @@ export async function getCaseStats(yearFilter?: number): Promise<CaseStatEntry[]
   try {
     const url = yearFilter ? `/api/case-stats?year=${yearFilter}` : '/api/case-stats';
     const res = await fetch(url);
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         await storageSet('case-stats:cached', JSON.stringify(data));
@@ -219,35 +314,49 @@ export async function getCaseStats(yearFilter?: number): Promise<CaseStatEntry[]
       }
     }
   } catch (err) {
-    console.warn('[PostgreSQL] Failed to fetch case stats from backend API:', err);
+    console.warn('[Storage] Failed to fetch case stats from backend API:', err);
   }
 
   const cached = await storageGet('case-stats:cached');
   if (cached) {
     try {
-      return JSON.parse(cached);
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return yearFilter ? parsed.filter((s: CaseStatEntry) => s.year === yearFilter) : parsed;
+      }
     } catch {
       // ignore
     }
   }
-  return INITIAL_CASE_STATS;
+  return yearFilter ? INITIAL_CASE_STATS.filter((s) => s.year === yearFilter) : INITIAL_CASE_STATS;
 }
 
 export async function saveCaseStat(stat: CaseStatEntry): Promise<void> {
+  // Update local cache immediately
   try {
-    const res = await fetch('/api/case-stats', {
+    const current = await getCaseStats();
+    const existingIdx = current.findIndex((s) => s.id === stat.id);
+    let updated: CaseStatEntry[];
+    if (existingIdx >= 0) {
+      updated = [...current];
+      updated[existingIdx] = stat;
+    } else {
+      updated = [...current, stat];
+    }
+    await storageSet('case-stats:cached', JSON.stringify(updated));
+  } catch {
+    // ignore
+  }
+
+  // Sync to PostgreSQL backend
+  try {
+    await fetch('/api/case-stats', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stat),
     });
-    if (!res.ok) {
-      const errorJson = await res.json().catch(() => ({}));
-      throw new Error(errorJson.error || 'Gagal menyimpan statistik perkara ke PostgreSQL');
-    }
   } catch (err: any) {
-    console.error('[PostgreSQL] Save case stats error:', err);
-    const key = `case-stats:${stat.category}:${stat.year}`;
-    await storageSet(key, JSON.stringify(stat));
+    console.warn('[Storage] Save case stats backend error, saved locally:', err.message);
   }
 }
 
@@ -259,7 +368,8 @@ export async function getAnnualTargets(yearFilter?: number): Promise<AnnualTarge
   try {
     const url = yearFilter ? `/api/annual-targets?year=${yearFilter}` : '/api/annual-targets';
     const res = await fetch(url);
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         await storageSet('annual-targets:cached', JSON.stringify(data));
@@ -267,7 +377,7 @@ export async function getAnnualTargets(yearFilter?: number): Promise<AnnualTarge
       }
     }
   } catch (err) {
-    console.warn('[PostgreSQL] Failed to fetch annual targets from backend API:', err);
+    console.warn('[Storage] Failed to fetch annual targets from backend API:', err);
   }
 
   const cached = await storageGet('annual-targets:cached');
@@ -285,21 +395,7 @@ export async function getAnnualTargets(yearFilter?: number): Promise<AnnualTarge
 }
 
 export async function saveAnnualTarget(target: AnnualTargetEntry): Promise<void> {
-  try {
-    const res = await fetch('/api/annual-targets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(target),
-    });
-    if (!res.ok) {
-      const errorJson = await res.json().catch(() => ({}));
-      throw new Error(errorJson.error || 'Gagal menyimpan target tahunan ke PostgreSQL');
-    }
-  } catch (err: any) {
-    console.error('[PostgreSQL] Save annual target error:', err);
-  }
-
-  // Update in local cache as well
+  // Update local cache immediately
   try {
     const current = await getAnnualTargets();
     const existingIdx = current.findIndex((t) => t.id === target.id);
@@ -314,20 +410,21 @@ export async function saveAnnualTarget(target: AnnualTargetEntry): Promise<void>
   } catch {
     // ignore
   }
+
+  // Sync to PostgreSQL backend
+  try {
+    await fetch('/api/annual-targets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(target),
+    });
+  } catch (err: any) {
+    console.warn('[Storage] Save annual target backend error, saved locally:', err.message);
+  }
 }
 
 export async function deleteAnnualTarget(id: string): Promise<void> {
-  try {
-    const res = await fetch(`/api/annual-targets/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
-      throw new Error('Gagal menghapus target tahunan dari PostgreSQL');
-    }
-  } catch (err: any) {
-    console.error('[PostgreSQL] Delete annual target error:', err);
-  }
-
+  // Remove from local cache immediately
   try {
     const current = await getAnnualTargets();
     const updated = current.filter((t) => t.id !== id);
@@ -335,8 +432,16 @@ export async function deleteAnnualTarget(id: string): Promise<void> {
   } catch {
     // ignore
   }
-}
 
+  // Delete from PostgreSQL backend
+  try {
+    await fetch(`/api/annual-targets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch (err: any) {
+    console.warn('[Storage] Delete annual target backend error, deleted locally:', err.message);
+  }
+}
 
 // -------------------------------------------------------------
 // 4. USER AUTH SESSION
@@ -368,6 +473,10 @@ export async function saveAppSession(user: AppUser | null): Promise<void> {
 
 export async function resetDatabaseToDefault(): Promise<void> {
   try {
+    await storageDelete('intel_entries:cached');
+    await storageDelete('outreach_entries:cached');
+    await storageDelete('case-stats:cached');
+    await storageDelete('annual-targets:cached');
     await fetch('/api/db/reset', { method: 'POST' });
   } catch (err) {
     console.error('Reset database failed:', err);
