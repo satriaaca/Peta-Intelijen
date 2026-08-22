@@ -1,5 +1,5 @@
-import { IntelligenceEntry, OutreachEntry, CaseStatEntry, SectionId, AppUser } from '../types';
-import { INITIAL_ENTRIES, INITIAL_OUTREACH, INITIAL_CASE_STATS } from './seedData';
+import { IntelligenceEntry, OutreachEntry, CaseStatEntry, SectionId, AppUser, AnnualTargetEntry } from '../types';
+import { INITIAL_ENTRIES, INITIAL_OUTREACH, INITIAL_CASE_STATS, INITIAL_ANNUAL_TARGETS } from './seedData';
 import { formatGoogleDriveImageUrl } from '../utils/gdrive';
 
 // In-memory fallback
@@ -204,10 +204,24 @@ export async function deleteOutreachEntry(id: string, triwulan: number): Promise
 }
 
 // -------------------------------------------------------------
-// 3. CASE STATS (LOADED VIA JAMPIDUM API)
+// 3. CASE STATS (POSTGRESQL DB & JAMPIDUM API)
 // -------------------------------------------------------------
 
-export async function getCaseStats(): Promise<CaseStatEntry[]> {
+export async function getCaseStats(yearFilter?: number): Promise<CaseStatEntry[]> {
+  try {
+    const url = yearFilter ? `/api/case-stats?year=${yearFilter}` : '/api/case-stats';
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        await storageSet('case-stats:cached', JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('[PostgreSQL] Failed to fetch case stats from backend API:', err);
+  }
+
   const cached = await storageGet('case-stats:cached');
   if (cached) {
     try {
@@ -220,9 +234,109 @@ export async function getCaseStats(): Promise<CaseStatEntry[]> {
 }
 
 export async function saveCaseStat(stat: CaseStatEntry): Promise<void> {
-  const key = `case-stats:${stat.category}:${stat.year}`;
-  await storageSet(key, JSON.stringify(stat));
+  try {
+    const res = await fetch('/api/case-stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stat),
+    });
+    if (!res.ok) {
+      const errorJson = await res.json().catch(() => ({}));
+      throw new Error(errorJson.error || 'Gagal menyimpan statistik perkara ke PostgreSQL');
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL] Save case stats error:', err);
+    const key = `case-stats:${stat.category}:${stat.year}`;
+    await storageSet(key, JSON.stringify(stat));
+  }
 }
+
+// -------------------------------------------------------------
+// 3.5. ANNUAL PERFORMANCE TARGETS (POSTGRESQL & LOCAL STORAGE)
+// -------------------------------------------------------------
+
+export async function getAnnualTargets(yearFilter?: number): Promise<AnnualTargetEntry[]> {
+  try {
+    const url = yearFilter ? `/api/annual-targets?year=${yearFilter}` : '/api/annual-targets';
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        await storageSet('annual-targets:cached', JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('[PostgreSQL] Failed to fetch annual targets from backend API:', err);
+  }
+
+  const cached = await storageGet('annual-targets:cached');
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return yearFilter ? parsed.filter((t: AnnualTargetEntry) => t.year === yearFilter) : parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return yearFilter ? INITIAL_ANNUAL_TARGETS.filter((t) => t.year === yearFilter) : INITIAL_ANNUAL_TARGETS;
+}
+
+export async function saveAnnualTarget(target: AnnualTargetEntry): Promise<void> {
+  try {
+    const res = await fetch('/api/annual-targets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(target),
+    });
+    if (!res.ok) {
+      const errorJson = await res.json().catch(() => ({}));
+      throw new Error(errorJson.error || 'Gagal menyimpan target tahunan ke PostgreSQL');
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL] Save annual target error:', err);
+  }
+
+  // Update in local cache as well
+  try {
+    const current = await getAnnualTargets();
+    const existingIdx = current.findIndex((t) => t.id === target.id);
+    let updated: AnnualTargetEntry[];
+    if (existingIdx >= 0) {
+      updated = [...current];
+      updated[existingIdx] = target;
+    } else {
+      updated = [...current, target];
+    }
+    await storageSet('annual-targets:cached', JSON.stringify(updated));
+  } catch {
+    // ignore
+  }
+}
+
+export async function deleteAnnualTarget(id: string): Promise<void> {
+  try {
+    const res = await fetch(`/api/annual-targets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Gagal menghapus target tahunan dari PostgreSQL');
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL] Delete annual target error:', err);
+  }
+
+  try {
+    const current = await getAnnualTargets();
+    const updated = current.filter((t) => t.id !== id);
+    await storageSet('annual-targets:cached', JSON.stringify(updated));
+  } catch {
+    // ignore
+  }
+}
+
 
 // -------------------------------------------------------------
 // 4. USER AUTH SESSION

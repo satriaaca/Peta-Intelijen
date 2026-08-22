@@ -22,22 +22,32 @@ import {
   BookOpen, 
   Calendar,
   Layers,
-  Filter
+  Filter,
+  Target,
+  Edit3
 } from 'lucide-react';
-import { CaseStatEntry, OutreachEntry, IntelligenceEntry } from '../types';
+import { CaseStatEntry, OutreachEntry, IntelligenceEntry, AnnualTargetEntry } from '../types';
 import { TABANAN_KECAMATAN } from '../services/seedData';
+import AnnualTargetManager from './AnnualTargetManager';
 
 interface ChartsViewProps {
   caseStats: CaseStatEntry[];
   outreachEntries: OutreachEntry[];
   entries: IntelligenceEntry[];
+  annualTargets?: AnnualTargetEntry[];
+  onSaveAnnualTarget?: (target: AnnualTargetEntry) => Promise<void>;
+  onDeleteAnnualTarget?: (id: string) => Promise<void>;
 }
 
 export default function ChartsView({
   caseStats,
   outreachEntries,
   entries,
+  annualTargets = [],
+  onSaveAnnualTarget,
+  onDeleteAnnualTarget,
 }: ChartsViewProps) {
+
   const [selectedCaseCategory, setSelectedCaseCategory] = useState<string>('Semua');
   const [selectedChartMode, setSelectedChartMode] = useState<'stages' | 'categories'>('stages');
 
@@ -152,9 +162,20 @@ export default function ChartsView({
           </h2>
         </div>
         <p className="text-xs text-slate-300 max-w-2xl">
-          Visualisasi tren penanganan perkara, capaian triwulanan penyuluhan hukum (Target vs Penkum vs Luhkum), dan distribusi kewilayahan di Kabupaten Tabanan.
+          Visualisasi target vs capaian tahunan yang dapat disesuaikan (JMS, Jaksa Menyapa, PAKEM, Kampanye Anti Korupsi), tren penanganan perkara, capaian triwulanan, dan distribusi kewilayahan.
         </p>
       </div>
+
+      {/* Target & Realisasi Kinerja Tahunan Manager (Editable) */}
+      {onSaveAnnualTarget && (
+        <AnnualTargetManager
+          annualTargets={annualTargets}
+          onSaveTarget={onSaveAnnualTarget}
+          onDeleteTarget={onDeleteAnnualTarget}
+          selectedYear={2026}
+        />
+      )}
+
 
       {/* CHART 1: Case Trends by Year and Stage/Category */}
       <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-6 shadow-md">

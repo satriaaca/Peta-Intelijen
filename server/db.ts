@@ -67,9 +67,11 @@ export async function initializeDatabase() {
         gdrive_file_id VARCHAR(255),
         gdrive_file_url TEXT,
         photo_caption TEXT,
+        photos JSONB,
         created_at BIGINT,
         updated_at BIGINT
       );
+      ALTER TABLE intelligence_entries ADD COLUMN IF NOT EXISTS photos JSONB;
       CREATE INDEX IF NOT EXISTS idx_intel_section ON intelligence_entries(section_id);
       CREATE INDEX IF NOT EXISTS idx_intel_date ON intelligence_entries(event_date DESC);
     `);
@@ -95,12 +97,161 @@ export async function initializeDatabase() {
         gdrive_file_id VARCHAR(255),
         gdrive_file_url TEXT,
         photo_caption TEXT,
+        photos JSONB,
         created_at BIGINT,
         updated_at BIGINT
       );
+      ALTER TABLE outreach_entries ADD COLUMN IF NOT EXISTS photos JSONB;
       CREATE INDEX IF NOT EXISTS idx_outreach_triwulan ON outreach_entries(triwulan);
       CREATE INDEX IF NOT EXISTS idx_outreach_waktu ON outreach_entries(waktu DESC);
     `);
+
+    // 4. Table case_statistics (Statistik Perkara Yustisial)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS case_statistics (
+        id VARCHAR(100) PRIMARY KEY,
+        category VARCHAR(100) NOT NULL,
+        year INTEGER NOT NULL,
+        lid_spdp INTEGER DEFAULT 0,
+        dik_kejaksaan INTEGER DEFAULT 0,
+        dik_kepolisian INTEGER DEFAULT 0,
+        tut INTEGER DEFAULT 0,
+        notes TEXT,
+        updated_at BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS idx_case_stats_year ON case_statistics(year);
+      CREATE INDEX IF NOT EXISTS idx_case_stats_cat ON case_statistics(category);
+    `);
+
+    // 5. Table annual_targets (Target & Realisasi Kinerja Tahunan Intelijen / Penkum)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS annual_targets (
+        id VARCHAR(100) PRIMARY KEY,
+        program VARCHAR(150) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        year INTEGER NOT NULL,
+        target_tahunan INTEGER NOT NULL DEFAULT 0,
+        realisasi_tahunan INTEGER NOT NULL DEFAULT 0,
+        satuan VARCHAR(50) NOT NULL DEFAULT 'Kegiatan',
+        keterangan TEXT,
+        updated_at BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS idx_annual_targets_year ON annual_targets(year);
+    `);
+
+    // Seed annual targets if empty
+    const checkAnnualTargets = await client.query(`SELECT COUNT(*) FROM annual_targets`);
+    if (parseInt(checkAnnualTargets.rows[0].count, 10) === 0) {
+      console.log("[PostgreSQL] Seeding initial annual targets...");
+      const initialTargets = [
+        {
+          id: "target-jms-2026",
+          program: "Jaksa Masuk Sekolah (JMS)",
+          category: "Penkum / JMS",
+          year: 2026,
+          target_tahunan: 3,
+          realisasi_tahunan: 5,
+          satuan: "Kegiatan",
+          keterangan: "Edukasi hukum di sekolah tingkat SMP dan SMA/SMK se-Kabupaten Tabanan",
+        },
+        {
+          id: "target-jaksa-menyapa-2026",
+          program: "Jaksa Menyapa",
+          category: "Pelayanan Publik",
+          year: 2026,
+          target_tahunan: 2,
+          realisasi_tahunan: 3,
+          satuan: "Kegiatan",
+          keterangan: "Siaran dialog interaktif bersama masyarakat melalui radio / media publik",
+        },
+        {
+          id: "target-pakem-2026",
+          program: "PAKEM (Pengawasan Aliran Kepercayaan)",
+          category: "Pengawasan Aliran (PAKEM)",
+          year: 2026,
+          target_tahunan: 1,
+          realisasi_tahunan: 3,
+          satuan: "Kegiatan",
+          keterangan: "Rapat koordinasi dan pengawasan aliran kepercayaan dan keagamaan dalam masyarakat",
+        },
+        {
+          id: "target-anti-korupsi-2026",
+          program: "Kampanye Anti Korupsi",
+          category: "Pencegahan Korupsi",
+          year: 2026,
+          target_tahunan: 1,
+          realisasi_tahunan: 2,
+          satuan: "Kegiatan",
+          keterangan: "Sosialisasi dan kampanye gerakan integritas dan pencegahan tindak pidana korupsi",
+        },
+      ];
+
+      for (const at of initialTargets) {
+        await client.query(
+          `INSERT INTO annual_targets (id, program, category, year, target_tahunan, realisasi_tahunan, satuan, keterangan, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (id) DO NOTHING`,
+          [at.id, at.program, at.category, at.year, at.target_tahunan, at.realisasi_tahunan, at.satuan, at.keterangan, Date.now()]
+        );
+      }
+    }
+
+    // Seed case statistics if empty
+    const checkCaseStats = await client.query(`SELECT COUNT(*) FROM case_statistics`);
+    if (parseInt(checkCaseStats.rows[0].count, 10) === 0) {
+      console.log("[PostgreSQL] Seeding initial case statistics...");
+      const initialStats = [
+        {
+          id: "case-stats:Korupsi:2026",
+          category: "Korupsi",
+          year: 2026,
+          lid_spdp: 1,
+          dik_kejaksaan: 1,
+          dik_kepolisian: 0,
+          tut: 1,
+          notes: "Penyidikan dugaan penyimpangan pengelolaan LPD dan BUMDes di wilayah Tabanan",
+        },
+        {
+          id: "case-stats:Narkotika:2026",
+          category: "Narkotika",
+          year: 2026,
+          lid_spdp: 8,
+          dik_kejaksaan: 7,
+          dik_kepolisian: 6,
+          tut: 6,
+          notes: "Pelimpahan berkas perkara UU No. 35 Tahun 2009 dari Satresnarkoba Polres Tabanan",
+        },
+        {
+          id: "case-stats:Terorisme:2026",
+          category: "Terorisme",
+          year: 2026,
+          lid_spdp: 0,
+          dik_kejaksaan: 0,
+          dik_kepolisian: 0,
+          tut: 0,
+          notes: "Nihil perkara tindak pidana terorisme / radikalisme",
+        },
+        {
+          id: "case-stats:Perkara Menarik Perhatian Masyarakat:2026",
+          category: "Perkara Menarik Perhatian Masyarakat",
+          year: 2026,
+          lid_spdp: 5,
+          dik_kejaksaan: 4,
+          dik_kepolisian: 4,
+          tut: 3,
+          notes: "Perkara menonjol tindak pidana pencurian, penggelapan, dan perlindungan anak",
+        },
+      ];
+
+      for (const cs of initialStats) {
+        await client.query(
+          `INSERT INTO case_statistics (id, category, year, lid_spdp, dik_kejaksaan, dik_kepolisian, tut, notes, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (id) DO NOTHING`,
+          [cs.id, cs.category, cs.year, cs.lid_spdp, cs.dik_kejaksaan, cs.dik_kepolisian, cs.tut, cs.notes, new Date()]
+        );
+      }
+    }
 
     // Seed intelligence entries if empty
     const checkIntel = await client.query(`SELECT COUNT(*) FROM intelligence_entries`);
@@ -251,8 +402,8 @@ export async function initializeDatabase() {
             e.officerName,
             e.sourceConfidence,
             e.status,
-            Date.now(),
-            Date.now(),
+            new Date(),
+            new Date(),
           ]
         );
       }
@@ -352,8 +503,8 @@ export async function initializeDatabase() {
             o.status,
             o.gdrive_file_url,
             o.photo_caption,
-            Date.now(),
-            Date.now(),
+            new Date(),
+            new Date(),
           ]
         );
       }

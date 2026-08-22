@@ -11,6 +11,13 @@ export interface SectionMeta {
   defaultKeterangan: string[];
 }
 
+export interface MediaPhoto {
+  id: string;
+  url: string;
+  caption?: string;
+  fileId?: string;
+}
+
 export interface IntelligenceEntry {
   id: string;
   no: string; // Nomor register / urut, e.g. "REG-01/D.IN.1/2026"
@@ -24,15 +31,22 @@ export interface IntelligenceEntry {
   kecamatan: string; // Kecamatan di Kab. Tabanan
   classification?: 'RAHASIA' | 'TERBATAS' | 'BIASA';
   officerName?: string; // Petugas Intelijen
-  photoUrl?: string; // Base64 or image URL
+  photoUrl?: string; // Base64 or image URL (primary)
   photoCaption?: string;
+  photos?: MediaPhoto[]; // Array of 1 to 5 photos
   sourceConfidence?: 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
   status?: 'SELESAI' | 'DALAM_PEMANTAUAN' | 'TINDAK_LANJUT';
   createdAt: number;
   updatedAt: number;
 }
 
-export type OutreachCategory = 'Penyuluhan Hukum' | 'Penerangan Hukum' | 'Jaksa Masuk Sekolah (JMS)' | 'Jaksa Menyapa';
+export type OutreachCategory = 
+  | 'Jaksa Masuk Sekolah (JMS)' 
+  | 'Jaksa Menyapa' 
+  | 'Pakem' 
+  | 'Kampanye Anti Korupsi'
+  | 'Penyuluhan Hukum' 
+  | 'Penerangan Hukum';
 
 export interface OutreachEntry {
   id: string;
@@ -47,8 +61,9 @@ export interface OutreachEntry {
   target_peserta?: number;
   narasumber?: string;
   materi_pokok?: string;
-  photoUrl?: string;
+  photoUrl?: string; // primary photo
   photoCaption?: string;
+  photos?: MediaPhoto[]; // Array of 1 to 5 photos (min 1, max 5)
   latitude?: number;
   longitude?: number;
   status: 'TERLAKSANA' | 'TERJADWAL' | 'DITUNDA';
@@ -117,5 +132,17 @@ export interface JampidumPerkara {
 export interface JampidumSatkerOption {
   code: string;
   name: string;
+}
+
+export interface AnnualTargetEntry {
+  id: string; // e.g. "target-jms-2026", "target-jaksa-menyapa-2026", "target-pakem-2026", "target-anti-korupsi-2026"
+  program: string; // "Jaksa Masuk Sekolah (JMS)", "Jaksa Menyapa", "PAKEM (Pengawasan Aliran Kepercayaan)", "Kampanye Anti Korupsi"
+  category: string; // "Penkum / JMS", "Pelayanan Publik", "Pengawasan Aliran (PAKEM)", "Pencegahan Korupsi", "Lainnya"
+  year: number; // 2026
+  targetTahunan: number; // e.g. 3, 2, 1, 1
+  realisasiTahunan: number; // e.g. 5, 3, 3, 2
+  satuan: string; // "Kegiatan" / "Giat" / "Peserta"
+  keterangan?: string;
+  updatedAt: number;
 }
 

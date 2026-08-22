@@ -60,77 +60,117 @@ export default function OfficialReportModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-[#0F172A]/95 backdrop-blur-md flex flex-col justify-between text-slate-100 overflow-y-auto">
-      {/* Top Slide Control Bar */}
-      <header className="px-6 py-3.5 bg-[#1E293B] border-b border-slate-800 flex items-center justify-between sticky top-0 z-20 shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
-            <Presentation className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
-              FORMAT PAPAN PETA INTELIJEN (PENGGANTI PPT)
+      {/* Top Slide Control Bar - Fully Responsive for Mobile & Desktop */}
+      <header className="px-3 sm:px-6 py-2.5 sm:py-3.5 bg-[#1E293B] border-b border-slate-800 sticky top-0 z-30 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          {/* Top Row: Title, Slide Info & Prominent Exit Button */}
+          <div className="flex items-center justify-between gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold shrink-0">
+                <Presentation className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[9px] sm:text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider truncate">
+                  PAPAN PETA INTELIJEN • SLIDE {currentSlideIndex + 1}/{slides.length}
+                </div>
+                <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
+                  {slides[currentSlideIndex].title}
+                </h2>
+              </div>
             </div>
-            <h2 className="text-sm font-bold text-white tracking-tight">
-              {slides[currentSlideIndex].title} ({currentSlideIndex + 1}/{slides.length})
-            </h2>
-          </div>
-        </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-3">
-          {/* Slide Navigation */}
-          <div className="flex items-center gap-1 bg-[#0F172A] p-1 rounded-xl border border-slate-800">
+            {/* Prominent Exit Button on Mobile (Always Visible at Top Right) */}
             <button
-              onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
-              disabled={currentSlideIndex === 0}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 cursor-pointer transition-colors"
+              type="button"
+              onClick={onClose}
+              className="sm:hidden px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors shadow-sm"
+              title="Keluar dari Papan Slide"
             >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-mono px-2 text-slate-300">
-              Slide {currentSlideIndex + 1} of {slides.length}
-            </span>
-            <button
-              onClick={() => setCurrentSlideIndex(Math.min(slides.length - 1, currentSlideIndex + 1))}
-              disabled={currentSlideIndex === slides.length - 1}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 cursor-pointer transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
+              <X className="w-4 h-4 stroke-[2.5]" />
+              <span>Tutup</span>
             </button>
           </div>
 
-          <button
-            onClick={handlePrint}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
-          >
-            <Printer className="w-3.5 h-3.5 text-amber-400" />
-            <span>Cetak Laporan</span>
-          </button>
+          {/* Action Controls & Navigation Toolbar */}
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+            {/* Quick Slide Dropdown on Mobile */}
+            <select
+              value={currentSlideIndex}
+              onChange={(e) => setCurrentSlideIndex(Number(e.target.value))}
+              className="sm:hidden flex-1 bg-[#0F172A] border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-amber-400 font-semibold focus:outline-none"
+            >
+              {slides.map((s, idx) => (
+                <option key={s.id} value={idx}>
+                  Slide {idx + 1}: {s.title.split('—')[0]}
+                </option>
+              ))}
+            </select>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+            {/* Slide Navigation Buttons */}
+            <div className="flex items-center gap-1 bg-[#0F172A] p-1 rounded-xl border border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
+                disabled={currentSlideIndex === 0}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 cursor-pointer transition-colors"
+                title="Slide Sebelumnya"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-[11px] sm:text-xs font-mono px-1.5 sm:px-2 text-slate-300 whitespace-nowrap">
+                {currentSlideIndex + 1} / {slides.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentSlideIndex(Math.min(slides.length - 1, currentSlideIndex + 1))}
+                disabled={currentSlideIndex === slides.length - 1}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 cursor-pointer transition-colors"
+                title="Slide Selanjutnya"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Print Button */}
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+              title="Cetak Laporan Resmi"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Cetak Laporan</span>
+            </button>
+
+            {/* Desktop Close Button */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold cursor-pointer transition-colors shrink-0"
+              title="Tutup Paparan Slide"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+              <span>Keluar</span>
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Slide Canvas Body */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-8 flex items-center justify-center">
-        <div className="w-full bg-[#1E293B] border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative min-h-[580px] flex flex-col justify-between">
+      <main className="flex-1 max-w-6xl w-full mx-auto p-2.5 sm:p-6 lg:p-8 flex items-center justify-center">
+        <div className="w-full bg-[#1E293B] border border-slate-800 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl relative min-h-0 sm:min-h-[560px] flex flex-col justify-between">
           {/* Official Kop Surat Header */}
-          <div className="border-b-2 border-amber-500/40 pb-4 mb-6 text-center relative">
-            <div className="text-[11px] font-bold tracking-widest text-amber-400 uppercase font-mono">
+          <div className="border-b-2 border-amber-500/40 pb-3 sm:pb-4 mb-4 sm:mb-6 text-center relative">
+            <div className="text-[9px] sm:text-[11px] font-bold tracking-widest text-amber-400 uppercase font-mono">
               KEJAKSAAN REPUBLIK INDONESIA
             </div>
-            <div className="text-xs font-bold tracking-wider text-slate-300 uppercase mt-0.5">
+            <div className="text-[10px] sm:text-xs font-bold tracking-wider text-slate-300 uppercase mt-0.5">
               KEJAKSAAN TINGGI BALI — KEJAKSAAN NEGERI TABANAN
             </div>
-            <div className="text-base sm:text-lg font-extrabold text-white uppercase tracking-tight mt-1">
+            <div className="text-sm sm:text-lg font-black text-white uppercase tracking-tight mt-1">
               PAPAN PETA INTELIJEN YUSTISIAL (PPI)
             </div>
-            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+            <div className="text-[9px] sm:text-[10px] text-slate-400 font-mono mt-0.5">
               Wilayah Hukum Kabupaten Tabanan • Triwulan I Tahun 2026 • Formulasi 5W+1H (SIADIBIBAM)
             </div>
           </div>
@@ -353,28 +393,30 @@ export default function OfficialReportModal({
           </div>
 
           {/* Slide Footer */}
-          <div className="mt-6 pt-3 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+          <div className="mt-4 sm:mt-6 pt-2.5 sm:pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-1 text-[9px] sm:text-[10px] text-slate-500 font-mono text-center sm:text-left">
             <span>KEJAKSAAN NEGERI TABANAN — SEKSI INTELIJEN</span>
-            <span>SLIDE {currentSlideIndex + 1} DARI {slides.length}</span>
+            <span className="text-amber-500/80 font-bold">SLIDE {currentSlideIndex + 1} DARI {slides.length}</span>
           </div>
         </div>
       </main>
 
-      {/* Bottom Thumbnail Strip */}
-      <footer className="px-6 py-3.5 bg-[#1E293B] border-t border-slate-800 flex items-center justify-center gap-2 overflow-x-auto">
-        {slides.map((s, idx) => (
-          <button
-            key={s.id}
-            onClick={() => setCurrentSlideIndex(idx)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap cursor-pointer transition-all ${
-              currentSlideIndex === idx
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                : 'bg-[#0F172A] text-slate-400 hover:text-slate-200 border border-slate-800'
-            }`}
-          >
-            {idx + 1}. {s.title.split('—')[0]}
-          </button>
-        ))}
+      {/* Bottom Thumbnail Strip - Smooth Touch Scroll on Mobile */}
+      <footer className="px-3 sm:px-6 py-2.5 sm:py-3.5 bg-[#1E293B] border-t border-slate-800 sticky bottom-0 z-20">
+        <div className="flex items-center justify-start sm:justify-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {slides.map((s, idx) => (
+            <button
+              key={s.id}
+              onClick={() => setCurrentSlideIndex(idx)}
+              className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                currentSlideIndex === idx
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md ring-1 ring-amber-400'
+                  : 'bg-[#0F172A] text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              {idx + 1}. {s.title.split('—')[0]}
+            </button>
+          ))}
+        </div>
       </footer>
     </div>
   );

@@ -122,15 +122,27 @@ export default function OutreachMapView({
 
       const isJMS = entry.jenis_kegiatan === 'Jaksa Masuk Sekolah (JMS)';
       const isRadio = entry.jenis_kegiatan === 'Jaksa Menyapa';
+      const isPakem = entry.jenis_kegiatan === 'Pakem';
+      const isAntiKorupsi = entry.jenis_kegiatan === 'Kampanye Anti Korupsi';
       const isExecuted = entry.status === 'TERLAKSANA';
 
       // Custom marker color and icon HTML
-      const badgeBg = isJMS ? '#F59E0B' : isRadio ? '#8B5CF6' : '#0EA5E9';
-      const iconSvg = isJMS
-        ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`
-        : isRadio
-        ? `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>`
-        : `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`;
+      let badgeBg = '#0EA5E9';
+      if (isJMS) badgeBg = '#F59E0B';
+      else if (isRadio) badgeBg = '#8B5CF6';
+      else if (isPakem) badgeBg = '#10B981';
+      else if (isAntiKorupsi) badgeBg = '#EF4444';
+
+      let iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`;
+      if (isJMS) {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`;
+      } else if (isRadio) {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>`;
+      } else if (isPakem) {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+      } else if (isAntiKorupsi) {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
+      }
 
       const statusDot = isExecuted
         ? `<span class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full shadow-sm"></span>`
@@ -262,97 +274,94 @@ export default function OutreachMapView({
   return (
     <div className="space-y-4">
       {/* Top Statistical Summary Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="bg-[#151F33] border border-slate-800 p-3.5 rounded-2xl shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
+        <div className="bg-[#151F33] border border-slate-800 p-3 sm:p-3.5 rounded-2xl shadow-xs">
+          <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
             Kegiatan Terlaksana
           </div>
-          <div className="text-xl font-bold text-emerald-400 font-mono mt-1 flex items-baseline gap-1.5">
+          <div className="text-base sm:text-xl font-bold text-emerald-400 font-mono mt-1 flex items-baseline gap-1">
             {terlaksanaCount}
-            <span className="text-[11px] text-slate-400 font-sans font-normal">/ {outreachEntries.length} Giat</span>
+            <span className="text-[10px] sm:text-[11px] text-slate-400 font-sans font-normal">/ {outreachEntries.length} Giat</span>
           </div>
         </div>
 
-        <div className="bg-[#151F33] border border-slate-800 p-3.5 rounded-2xl shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-            <GraduationCap className="w-3.5 h-3.5 text-amber-400" />
+        <div className="bg-[#151F33] border border-slate-800 p-3 sm:p-3.5 rounded-2xl shadow-xs">
+          <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <GraduationCap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             JMS (Sekolah)
           </div>
-          <div className="text-xl font-bold text-amber-400 font-mono mt-1">
-            {jmsCount} <span className="text-[11px] text-slate-400 font-sans font-normal">Titik</span>
+          <div className="text-base sm:text-xl font-bold text-amber-400 font-mono mt-1">
+            {jmsCount} <span className="text-[10px] sm:text-[11px] text-slate-400 font-sans font-normal">Titik</span>
           </div>
         </div>
 
-        <div className="bg-[#151F33] border border-slate-800 p-3.5 rounded-2xl shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-            <BookOpen className="w-3.5 h-3.5 text-sky-400" />
+        <div className="bg-[#151F33] border border-slate-800 p-3 sm:p-3.5 rounded-2xl shadow-xs">
+          <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <BookOpen className="w-3.5 h-3.5 text-sky-400 shrink-0" />
             Penkum / Luhkum
           </div>
-          <div className="text-xl font-bold text-sky-400 font-mono mt-1">
-            {penkumCount} <span className="text-[11px] text-slate-400 font-sans font-normal">Titik</span>
+          <div className="text-base sm:text-xl font-bold text-sky-400 font-mono mt-1">
+            {penkumCount} <span className="text-[10px] sm:text-[11px] text-slate-400 font-sans font-normal">Titik</span>
           </div>
         </div>
 
-        <div className="bg-[#151F33] border border-slate-800 p-3.5 rounded-2xl shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-            <Users className="w-3.5 h-3.5 text-slate-400" />
+        <div className="bg-[#151F33] border border-slate-800 p-3 sm:p-3.5 rounded-2xl shadow-xs">
+          <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             Peserta Dijangkau
           </div>
-          <div className="text-xl font-bold text-white font-mono mt-1">
-            {totalPeserta.toLocaleString()} <span className="text-[11px] text-slate-400 font-sans font-normal">Orang</span>
+          <div className="text-base sm:text-xl font-bold text-white font-mono mt-1">
+            {totalPeserta.toLocaleString()} <span className="text-[10px] sm:text-[11px] text-slate-400 font-sans font-normal">Orang</span>
           </div>
         </div>
 
-        <div className="bg-[#151F33] border border-slate-800 p-3.5 rounded-2xl shadow-xs col-span-2 sm:col-span-1">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+        <div className="bg-[#151F33] border border-slate-800 p-3 sm:p-3.5 rounded-2xl shadow-xs col-span-2 sm:col-span-1">
+          <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             Kecamatan Terlayani
           </div>
-          <div className="text-xl font-bold text-emerald-400 font-mono mt-1">
-            {coveredKecamatan} <span className="text-[11px] text-slate-400 font-sans font-normal">/ 10 Wilayah</span>
+          <div className="text-base sm:text-xl font-bold text-emerald-400 font-mono mt-1">
+            {coveredKecamatan} <span className="text-[10px] sm:text-[11px] text-slate-400 font-sans font-normal">/ 10 Wilayah</span>
           </div>
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-[#151F33] border border-slate-800 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-bold text-slate-400 text-[11px] flex items-center gap-1 uppercase tracking-wider">
-            <Filter className="w-3.5 h-3.5 text-amber-400" />
-            Filter Peta:
-          </span>
-
+      {/* Filter Toolbar - Responsive Grid on Mobile */}
+      <div className="bg-[#151F33] border border-slate-800 p-3 sm:p-3.5 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Jenis Kegiatan */}
           <select
             value={selectedCategoryFilter}
             onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-            className="bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+            className="w-full sm:w-auto bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
           >
             <option value="ALL">Semua Program</option>
-            <option value="Jaksa Masuk Sekolah (JMS)">🎓 Jaksa Masuk Sekolah (JMS)</option>
-            <option value="Penerangan Hukum">🏛️ Penerangan Hukum (Penkum)</option>
-            <option value="Penyuluhan Hukum">⚖️ Penyuluhan Hukum (Luhkum)</option>
-            <option value="Jaksa Menyapa">🎙️ Jaksa Menyapa (Radio)</option>
+            <option value="Jaksa Masuk Sekolah (JMS)">🎓 JMS (Sekolah)</option>
+            <option value="Jaksa Menyapa">🎙️ Jaksa Menyapa</option>
+            <option value="Pakem">🕊️ Pakem</option>
+            <option value="Kampanye Anti Korupsi">🛡️ Anti Korupsi</option>
+            <option value="Penyuluhan Hukum">⚖️ Penyuluhan (Luhkum)</option>
+            <option value="Penerangan Hukum">🏛️ Penerangan (Penkum)</option>
           </select>
 
           {/* Status */}
           <select
             value={selectedStatusFilter}
             onChange={(e) => setSelectedStatusFilter(e.target.value)}
-            className="bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+            className="w-full sm:w-auto bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
           >
             <option value="ALL">Semua Status</option>
             <option value="TERLAKSANA">🟢 Sudah Terlaksana</option>
-            <option value="TERJADWAL">🟡 Terjadwal (Rencana)</option>
+            <option value="TERJADWAL">🟡 Terjadwal</option>
           </select>
 
           {/* Triwulan */}
           <select
             value={selectedTriwulanFilter}
             onChange={(e) => setSelectedTriwulanFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-            className="bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+            className="w-full sm:w-auto bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
           >
-            <option value="ALL">Semua Triwulan (I–IV)</option>
+            <option value="ALL">Semua TW (I–IV)</option>
             <option value={1}>Triwulan I</option>
             <option value={2}>Triwulan II</option>
             <option value={3}>Triwulan III</option>
@@ -363,7 +372,7 @@ export default function OutreachMapView({
           <select
             value={selectedKecamatanFilter}
             onChange={(e) => setSelectedKecamatanFilter(e.target.value)}
-            className="bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+            className="w-full sm:w-auto bg-[#0B1120] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
           >
             <option value="ALL">Semua Kecamatan</option>
             {TABANAN_KECAMATAN.map((kec) => (
@@ -375,18 +384,26 @@ export default function OutreachMapView({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-3 text-[11px] text-slate-400 font-medium">
+        <div className="flex flex-wrap items-center gap-2.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
           <span className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
             JMS
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" />
-            Penkum/Luhkum
+            Penkum
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block" />
             Jaksa Menyapa
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+            Pakem
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+            Anti Korupsi
           </span>
         </div>
       </div>
@@ -395,16 +412,16 @@ export default function OutreachMapView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Map Container (8 cols on lg) */}
         <div className="lg:col-span-8 bg-[#151F33] border border-slate-800 rounded-2xl overflow-hidden shadow-md flex flex-col relative">
-          <div className="px-4 py-3 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between">
+          <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-[#0F172A] border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-              <MapPin className="w-4 h-4 text-amber-400" />
-              <span>Peta Sebaran Titik Pelaksanaan JMS & Penkum Kab. Tabanan</span>
-              <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
-                {filteredEntries.length} Pin Aktif
+              <MapPin className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="truncate">Peta Sebaran Titik JMS & Penkum Kab. Tabanan</span>
+              <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded shrink-0">
+                {filteredEntries.length} Pin
               </span>
             </div>
-            <div className="text-[11px] text-slate-400">
-              Klik pin lokasi untuk melihat detail & foto dokumentasi
+            <div className="text-[10px] sm:text-[11px] text-slate-400">
+              Klik pin lokasi untuk melihat detail & foto
             </div>
           </div>
 

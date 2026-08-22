@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { AppUser, IntelligenceEntry, OutreachEntry, CaseStatEntry, SectionId } from './types';
+import { AppUser, IntelligenceEntry, OutreachEntry, CaseStatEntry, SectionId, AnnualTargetEntry } from './types';
 import { 
   getIntelligenceEntries, 
   saveIntelligenceEntry, 
@@ -14,6 +14,9 @@ import {
   deleteOutreachEntry, 
   getCaseStats, 
   saveCaseStat, 
+  getAnnualTargets,
+  saveAnnualTarget,
+  deleteAnnualTarget,
   getAppSession, 
   saveAppSession, 
   resetDatabaseToDefault 
@@ -45,6 +48,7 @@ export default function App() {
   const [entries, setEntries] = useState<IntelligenceEntry[]>([]);
   const [outreachEntries, setOutreachEntries] = useState<OutreachEntry[]>([]);
   const [caseStats, setCaseStats] = useState<CaseStatEntry[]>([]);
+  const [annualTargets, setAnnualTargets] = useState<AnnualTargetEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Modals state
@@ -56,16 +60,18 @@ export default function App() {
   const loadAllData = useCallback(async () => {
     try {
       setLoading(true);
-      const [fetchedEntries, fetchedOutreach, fetchedStats, sessionUser] = await Promise.all([
+      const [fetchedEntries, fetchedOutreach, fetchedStats, fetchedTargets, sessionUser] = await Promise.all([
         getIntelligenceEntries(),
         getOutreachEntries(),
         getCaseStats(),
+        getAnnualTargets(),
         getAppSession(),
       ]);
 
       setEntries(fetchedEntries);
       setOutreachEntries(fetchedOutreach);
       setCaseStats(fetchedStats);
+      setAnnualTargets(fetchedTargets);
       if (sessionUser) {
         setCurrentUser(sessionUser);
       }
@@ -75,6 +81,7 @@ export default function App() {
       setLoading(false);
     }
   }, []);
+
 
   useEffect(() => {
     loadAllData();
@@ -125,7 +132,21 @@ export default function App() {
     setCaseStats(updated);
   };
 
+  // Annual Target actions
+  const handleSaveAnnualTarget = async (target: AnnualTargetEntry) => {
+    await saveAnnualTarget(target);
+    const updated = await getAnnualTargets();
+    setAnnualTargets(updated);
+  };
+
+  const handleDeleteAnnualTarget = async (id: string) => {
+    await deleteAnnualTarget(id);
+    const updated = await getAnnualTargets();
+    setAnnualTargets(updated);
+  };
+
   // Reset database action
+
   const handleResetData = async () => {
     setLoading(true);
     await resetDatabaseToDefault();
@@ -196,6 +217,7 @@ export default function App() {
               onNavigateToForm={handleNavigateToForm}
               onNavigateToTab={setActiveTab}
               onViewEntryDetail={(entry) => setDetailEntry(entry)}
+              onSaveCaseStat={handleSaveCaseStat}
             />
           )}
 
@@ -216,6 +238,9 @@ export default function App() {
               outreachEntries={outreachEntries}
               onSaveOutreach={handleSaveOutreach}
               onDeleteOutreach={handleDeleteOutreach}
+              annualTargets={annualTargets}
+              onSaveAnnualTarget={handleSaveAnnualTarget}
+              onDeleteAnnualTarget={handleDeleteAnnualTarget}
             />
           )}
 
@@ -231,8 +256,12 @@ export default function App() {
               caseStats={caseStats}
               outreachEntries={outreachEntries}
               entries={entries}
+              annualTargets={annualTargets}
+              onSaveAnnualTarget={handleSaveAnnualTarget}
+              onDeleteAnnualTarget={handleDeleteAnnualTarget}
             />
           )}
+
 
           {activeTab === 'data-table' && (
             <DataTableView

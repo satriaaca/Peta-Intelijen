@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { 
   X, 
   Calendar, 
   MapPin, 
   FileText, 
   Printer, 
-  Scale
+  Scale,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon
 } from 'lucide-react';
-import { IntelligenceEntry } from '../types';
+import { IntelligenceEntry, MediaPhoto } from '../types';
 import { SECTIONS_CONFIG } from '../services/seedData';
 
 interface DetailModalProps {
@@ -15,6 +19,8 @@ interface DetailModalProps {
 }
 
 export default function DetailModal({ entry, onClose }: DetailModalProps) {
+  const [activePhotoIdx, setActivePhotoIdx] = useState<number>(0);
+
   if (!entry) return null;
 
   const sectionMeta = SECTIONS_CONFIG.find((s) => s.id === entry.section) || SECTIONS_CONFIG[0];
@@ -22,6 +28,12 @@ export default function DetailModal({ entry, onClose }: DetailModalProps) {
   const handlePrint = () => {
     window.print();
   };
+
+  const photosList: MediaPhoto[] = (entry.photos && entry.photos.length > 0)
+    ? entry.photos
+    : (entry.photoUrl ? [{ id: '1', url: entry.photoUrl, caption: entry.photoCaption }] : []);
+
+  const currentPhoto = photosList[activePhotoIdx] || photosList[0];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
@@ -153,25 +165,75 @@ export default function DetailModal({ entry, onClose }: DetailModalProps) {
             </div>
           </div>
 
-          {/* Optional Photo Attachment */}
-          {entry.photoUrl && (
+          {/* Optional Multi-Photo Attachments */}
+          {photosList.length > 0 && currentPhoto && (
             <div className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                Lampiran Foto Dokumentasi
-              </span>
-              <div className="rounded-xl overflow-hidden border border-slate-800 bg-[#0F172A]">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                  Lampiran Foto Dokumentasi ({activePhotoIdx + 1} / {photosList.length})
+                </span>
+                {photosList.length > 1 && (
+                  <span className="text-[10px] font-mono text-amber-400">
+                    Gunakan panah navigasi untuk melihat foto lain
+                  </span>
+                )}
+              </div>
+
+              <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-[#0F172A]">
                 <img
-                  src={entry.photoUrl}
+                  src={currentPhoto.url}
                   referrerPolicy="no-referrer"
                   alt="Dokumentasi Intelijen"
-                  className="w-full max-h-64 object-contain"
+                  className="w-full max-h-72 object-contain"
                 />
-                {entry.photoCaption && (
+
+                {photosList.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setActivePhotoIdx((prev) => (prev - 1 + photosList.length) % photosList.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/60 hover:bg-black/90 text-white cursor-pointer transition-colors"
+                      title="Foto Sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActivePhotoIdx((prev) => (prev + 1) % photosList.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/60 hover:bg-black/90 text-white cursor-pointer transition-colors"
+                      title="Foto Selanjutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+
+                {currentPhoto.caption && (
                   <div className="p-2 text-center text-xs text-slate-400 bg-[#0F172A]/90 border-t border-slate-800">
-                    {entry.photoCaption}
+                    {currentPhoto.caption}
                   </div>
                 )}
               </div>
+
+              {/* Thumbnails list if multiple photos */}
+              {photosList.length > 1 && (
+                <div className="flex items-center gap-2 pt-1 overflow-x-auto">
+                  {photosList.map((p, idx) => (
+                    <div
+                      key={p.id || idx}
+                      onClick={() => setActivePhotoIdx(idx)}
+                      className={`w-14 h-10 rounded-lg overflow-hidden border cursor-pointer shrink-0 transition-all ${
+                        activePhotoIdx === idx 
+                          ? 'border-amber-500 ring-2 ring-amber-500/40' 
+                          : 'border-slate-800 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={p.url} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

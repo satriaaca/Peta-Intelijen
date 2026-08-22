@@ -141,7 +141,7 @@ export default function Sidebar({
             {!isCollapsed && (
               <div className="min-w-0 transition-opacity duration-200">
                 <div className="text-[10px] font-bold tracking-wider text-amber-400 uppercase truncate">
-                  SATYA ADHI WICAKSANA
+                  /* SATYA ADHI WICAKSANA */
                 </div>
                 <div className="text-xs font-bold text-white truncate">
                   Peta Intelijen Kejari Tabanan

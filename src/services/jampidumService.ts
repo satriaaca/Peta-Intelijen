@@ -6,13 +6,6 @@ export const SATKER_NAME_TABANAN = 'Kejaksaan Negeri Tabanan';
 export const JAMPIDUM_SATKER_LIST = [
   { code: '22.08', name: 'Kejaksaan Negeri Tabanan (22.08)' },
   { code: '22.00', name: 'Kejaksaan Tinggi Bali (22.00)' },
-  { code: '22.01', name: 'Kejaksaan Negeri Denpasar (22.01)' },
-  { code: '22.02', name: 'Kejaksaan Negeri Singaraja (22.02)' },
-  { code: '22.03', name: 'Kejaksaan Negeri Gianyar (22.03)' },
-  { code: '22.04', name: 'Kejaksaan Negeri Klungkung (22.04)' },
-  { code: '22.05', name: 'Kejaksaan Negeri Bangli (22.05)' },
-  { code: '22.06', name: 'Kejaksaan Negeri Karangasem (22.06)' },
-  { code: '22.07', name: 'Kejaksaan Negeri Negara (22.07)' },
 ];
 
 /**

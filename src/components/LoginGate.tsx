@@ -101,7 +101,7 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/30">
             <Lock className="w-3 h-3" />
-            KLASIFIKASI: RAHASIA / INTERNAL
+            RAHASIA / INTERNAL
           </span>
         </div>
       </header>
@@ -122,17 +122,8 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
               Seksi Intelijen Kejaksaan Negeri Tabanan
             </p>
             <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-              Sistem Informasi Pelaporan Data Intelijen Yustisial & Formulasi 5W+1H (SIADIBIBAM)
+              Sistem Informasi Pelaporan Data Intelijen Yustisial
             </p>
-          </div>
-
-          {/* Security Notice Pill */}
-          <div className="mb-5 p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-start gap-2.5 text-xs text-slate-300">
-            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div className="leading-relaxed">
-              <span className="font-semibold text-amber-300">Akses Eksklusif Terbatas: </span>
-              Hanya akun resmi <span className="text-white font-semibold">Kasi Intelijen</span> dan <span className="text-white font-semibold">Administrator</span> yang memiliki hak akses. Semua email lain otomatis diblokir.
-            </div>
           </div>
 
           {/* Error Message & Authorized Domain Helper */}
@@ -142,48 +133,12 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
                 <AlertCircle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
                 <div className="flex-1">
                   <div className="font-bold text-amber-300 text-sm">
-                    Domain Perlu Didaftarkan di Firebase
+                    Email tidak terdaftar, harap gunakan email yang terdaftar!
                   </div>
-                  <p className="text-slate-300 mt-1 leading-relaxed">
-                    Firebase project Anda (<code className="text-amber-300 font-mono">tes-project-2b775</code>) mewajibkan domain ini diizinkan di Firebase Console.
-                  </p>
                 </div>
               </div>
 
               {/* Hostname to copy */}
-              <div className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-700 flex items-center justify-between gap-2">
-                <span className="font-mono text-[11px] text-amber-300 truncate select-all">
-                  {currentHost}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyHost}
-                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-[11px] flex items-center gap-1 shrink-0 cursor-pointer transition"
-                >
-                  {copiedDomain ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedDomain ? 'Tersalin!' : 'Salin'}</span>
-                </button>
-              </div>
-
-              {/* Steps to resolve */}
-              <div className="text-[11px] text-slate-300 space-y-1.5 pt-1 border-t border-slate-800">
-                <div className="font-semibold text-white">Langkah Mendaftarkan di Firebase:</div>
-                <ol className="list-decimal list-inside space-y-1 text-slate-300">
-                  <li>Buka Firebase Console project <span className="font-mono text-amber-300">tes-project-2b775</span>.</li>
-                  <li>Menu <span className="font-semibold text-white">Authentication</span> &rarr; tab <span className="font-semibold text-white">Settings</span> &rarr; <span className="font-semibold text-white">Authorized domains</span>.</li>
-                  <li>Klik <span className="font-semibold text-white">Add domain</span> &rarr; tempel domain di atas &rarr; Simpan.</li>
-                </ol>
-              </div>
-
-              <a
-                href="https://console.firebase.google.com/project/tes-project-2b775/authentication/settings"
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-              >
-                <span>Buka Firebase Console Settings</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
             </div>
           ) : errorMsg ? (
             <div className="mb-5 p-3.5 text-xs bg-rose-950/90 border border-rose-800/90 text-rose-200 rounded-xl flex items-start gap-2.5 shadow-sm animate-in fade-in duration-200">
@@ -228,20 +183,6 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
             </button>
 
             {/* Information Points */}
-            <div className="pt-4 border-t border-slate-700/70 space-y-2 text-xs text-slate-400">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Otentikasi aman via Google OAuth 2.0</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                <span>Hanya untuk akun Kasi Intelijen & Administrator</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <HelpCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Pengguna lain tidak diizinkan masuk ke sistem</span>
-              </div>
-            </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-700/80 flex items-center justify-between text-xs text-slate-400">
@@ -256,7 +197,7 @@ export default function LoginGate({ onLogin }: LoginGateProps) {
 
       {/* Footer Info */}
       <footer className="relative z-10 py-3 border-t border-slate-800 text-center text-xs text-slate-400 bg-[#151F33]/80">
-        Kejaksaan Negeri Tabanan — Jl. Bypass Ir. Soekarno, Tabanan, Bali (82113) | Dokumen Yustisial Terbatas
+        Kejaksaan Negeri Tabanan — Jl. Sudirman No.5, Dajan Peken, Kec. Tabanan, Kabupaten Tabanan, Bali 82121 | Dokumen Yustisial Terbatas
       </footer>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, 
   Users, 
@@ -7,17 +7,19 @@ import {
   Cpu, 
   BookOpen, 
   MapPin, 
-  ArrowUpRight, 
   Plus, 
   Scale, 
   Calendar,
   Eye,
   FileText,
-  Radio,
-  ChevronRight
+  RefreshCw,
+  CheckCircle2,
+  Database,
+  ArrowRight
 } from 'lucide-react';
-import { IntelligenceEntry, OutreachEntry, CaseStatEntry, SectionId } from '../types';
+import { IntelligenceEntry, OutreachEntry, CaseStatEntry, SectionId, JampidumPerkara } from '../types';
 import { SECTIONS_CONFIG, TABANAN_KECAMATAN } from '../services/seedData';
+import { fetchJampidumCases, aggregateJampidumCasesToStats, SATKER_TABANAN } from '../services/jampidumService';
 import { ActiveTab } from './Sidebar';
 
 interface DashboardViewProps {
@@ -27,6 +29,7 @@ interface DashboardViewProps {
   onNavigateToForm: (sectionId?: SectionId) => void;
   onNavigateToTab: (tab: ActiveTab) => void;
   onViewEntryDetail: (entry: IntelligenceEntry) => void;
+  onSaveCaseStat?: (stat: CaseStatEntry) => Promise<void>;
 }
 
 export default function DashboardView({
@@ -36,10 +39,72 @@ export default function DashboardView({
   onNavigateToForm,
   onNavigateToTab,
   onViewEntryDetail,
+  onSaveCaseStat,
 }: DashboardViewProps) {
-  const [selectedKecamatanFilter, setSelectedKecamatanFilter] = useState<string>('Semua');
+  const [selectedKecamatan, setSelectedKecamatan] = useState<string>('Semua');
+  const [jampidumCases, setJampidumCases] = useState<JampidumPerkara[]>([]);
+  const [isSyncingJampidum, setIsSyncingJampidum] = useState<boolean>(false);
+  const [jampidumError, setJampidumError] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
-  // Compute counts per section
+  // Auto-fetch JAMPIDUM data on mount to ensure live case statistics work out of the box
+  useEffect(() => {
+    let isMounted = true;
+    async function loadLiveJampidum() {
+      try {
+        setIsSyncingJampidum(true);
+        const result = await fetchJampidumCases(2026, SATKER_TABANAN);
+        if (isMounted) {
+          setJampidumCases(result.data);
+          setLastSyncTime(new Date(result.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+          
+          // Auto-persist aggregated case stats to database if provided
+          if (onSaveCaseStat && result.data.length > 0) {
+            const aggregated = aggregateJampidumCasesToStats(result.data, 2026);
+            for (const stat of aggregated) {
+              await onSaveCaseStat(stat);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          console.warn('Dashboard live JAMPIDUM fetch:', err.message);
+          setJampidumError(err.message);
+        }
+      } finally {
+        if (isMounted) {
+          setIsSyncingJampidum(false);
+        }
+      }
+    }
+
+    loadLiveJampidum();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleManualSyncJampidum = async () => {
+    setIsSyncingJampidum(true);
+    setJampidumError(null);
+    try {
+      const result = await fetchJampidumCases(2026, SATKER_TABANAN);
+      setJampidumCases(result.data);
+      setLastSyncTime(new Date(result.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+      if (onSaveCaseStat && result.data.length > 0) {
+        const aggregated = aggregateJampidumCasesToStats(result.data, 2026);
+        for (const stat of aggregated) {
+          await onSaveCaseStat(stat);
+        }
+      }
+    } catch (err: any) {
+      setJampidumError(err.message || 'Gagal memuat API JAMPIDUM');
+    } finally {
+      setIsSyncingJampidum(false);
+    }
+  };
+
+  // Section Counts from database entries
   const sectionCounts = SECTIONS_CONFIG.reduce((acc, sec) => {
     if (sec.id === 'D.IN.7') {
       acc[sec.id] = outreachEntries.length;
@@ -49,228 +114,287 @@ export default function DashboardView({
     return acc;
   }, {} as Record<SectionId, number>);
 
-  // Compute total cases for latest year (2026)
-  const stats2026 = caseStats.filter((s) => s.year === 2026);
-  const totalLid2026 = stats2026.reduce((sum, s) => sum + s.stages.lid_spdp, 0);
-  const totalDik2026 = stats2026.reduce((sum, s) => sum + s.stages.dik_kejaksaan + s.stages.dik_kepolisian, 0);
-  const totalTut2026 = stats2026.reduce((sum, s) => sum + s.stages.tut, 0);
+  // Compute Case Stats for 2026 (prefer live aggregated or database)
+  const currentStats = caseStats.filter((s) => s.year === 2026);
+  const totalLid = currentStats.reduce((sum, s) => sum + s.stages.lid_spdp, 0);
+  const totalDik = currentStats.reduce((sum, s) => sum + s.stages.dik_kejaksaan + s.stages.dik_kepolisian, 0);
+  const totalTut = currentStats.reduce((sum, s) => sum + s.stages.tut, 0);
+  const totalCasesAll = jampidumCases.length > 0 ? jampidumCases.length : (totalLid + totalDik + totalTut);
 
-  // Compute kecamatan entry statistics
+  // Compute Kecamatan Data
   const kecamatanData = TABANAN_KECAMATAN.map((kec) => {
     const dInCount = entries.filter((e) => e.kecamatan.toLowerCase().includes(kec.toLowerCase())).length;
     const penkumCount = outreachEntries.filter((o) => o.kecamatan.toLowerCase().includes(kec.toLowerCase())).length;
-    const total = dInCount + penkumCount;
-    let status: 'AMAN' | 'WASPADA' | 'RAWAN' = 'AMAN';
-    if (total >= 3) status = 'WASPADA';
     return {
       name: kec,
       dInCount,
       penkumCount,
-      total,
-      status,
+      total: dInCount + penkumCount,
     };
   });
 
+  const filteredEntries = selectedKecamatan === 'Semua'
+    ? entries
+    : entries.filter((e) => e.kecamatan.toLowerCase().includes(selectedKecamatan.toLowerCase()));
+
   const getSectionIcon = (iconName: string) => {
     switch (iconName) {
-      case 'ShieldAlert':
-        return <ShieldAlert className="w-5 h-5" />;
-      case 'Users':
-        return <Users className="w-5 h-5" />;
-      case 'TrendingUp':
-        return <TrendingUp className="w-5 h-5" />;
-      case 'HardHat':
-        return <HardHat className="w-5 h-5" />;
-      case 'Cpu':
-        return <Cpu className="w-5 h-5" />;
-      case 'BookOpen':
-        return <BookOpen className="w-5 h-5" />;
-      default:
-        return <FileText className="w-5 h-5" />;
+      case 'ShieldAlert': return <ShieldAlert className="w-5 h-5" />;
+      case 'Users': return <Users className="w-5 h-5" />;
+      case 'TrendingUp': return <TrendingUp className="w-5 h-5" />;
+      case 'HardHat': return <HardHat className="w-5 h-5" />;
+      case 'Cpu': return <Cpu className="w-5 h-5" />;
+      case 'BookOpen': return <BookOpen className="w-5 h-5" />;
+      default: return <FileText className="w-5 h-5" />;
     }
   };
 
-  const filteredEntries = selectedKecamatanFilter === 'Semua'
-    ? entries
-    : entries.filter((e) => e.kecamatan.toLowerCase().includes(selectedKecamatanFilter.toLowerCase()));
-
   return (
-    <div className="space-y-6 pb-8">
-      {/* Sleek Top Overview Card */}
-      <div className="bg-[#151F33] border border-slate-800 rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
-              <Radio className="w-3 h-3 animate-pulse" />
-              STATUS YUSTISIAL: AKTIF (2026)
+    <div className="space-y-6 pb-12">
+      {/* 1. Header Banner: Clean & Minimalist */}
+      <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              SISTEM AKTIF 2026
             </span>
-            <span className="text-xs text-slate-400">
-              Wilayah Hukum Kejari Tabanan
+            <span className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+              <Database className="w-3.5 h-3.5 text-sky-400" />
+              Neon PostgreSQL Connected
             </span>
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
             Papan Peta & Situasi Intelijen Terpadu
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-            Monitoring 6 sektor strategis D.IN (1–6), kegiatan penerangan hukum (D.IN.7), dan penanganan perkara yustisial.
+          </h1>
+          <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
+            Kejaksaan Negeri Tabanan — Monitoring 6 Sektor D.IN, Penerangan Hukum D.IN.7, dan Sinkronisasi Perkara JAMPIDUM RI.
           </p>
         </div>
 
-        {/* Action Shortcuts */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        {/* Header Action Buttons */}
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           <button
             onClick={() => onNavigateToForm('D.IN.1')}
-            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Input Laporan D.IN</span>
           </button>
+
           <button
-            onClick={() => onNavigateToTab('case-stats')}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+            onClick={handleManualSyncJampidum}
+            disabled={isSyncingJampidum}
+            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            title="Sinkronisasi data perkara langsung dari API JAMPIDUM"
           >
-            <Scale className="w-3.5 h-3.5 text-amber-400" />
-            <span>Statistik Perkara</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isSyncingJampidum ? 'animate-spin' : ''}`} />
+            <span>{isSyncingJampidum ? 'Menghubungkan...' : 'Sinkron JAMPIDUM'}</span>
           </button>
         </div>
       </div>
 
-      {/* 4 Summary Stat Cards */}
+      {/* 2. Key Metrics: 4 Clean, High-Contrast Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total D.IN Reports */}
+        {/* Card 1: Laporan D.IN 1-6 */}
         <div 
           onClick={() => onNavigateToTab('data-table')}
-          className="bg-[#151F33] border border-slate-800/90 hover:border-slate-700 rounded-2xl p-5 transition-all shadow-sm cursor-pointer group"
+          className="bg-[#111827] border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition-colors cursor-pointer group"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-amber-400 transition-colors">
-              Laporan D.IN (1–6)
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider group-hover:text-amber-400 transition-colors">
+              Laporan Intelijen (D.IN)
             </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <FileText className="w-4 h-4" />
-            </div>
+            <FileText className="w-4 h-4 text-amber-400" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-white font-mono">
-              {entries.length}
-            </span>
-            <span className="text-xs text-amber-400 font-semibold">
-              Laporan
-            </span>
+            <span className="text-3xl font-bold text-white font-mono">{entries.length}</span>
+            <span className="text-xs text-amber-400 font-semibold">Laporan</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">
-            Formulasi 5W+1H (SIADIBIBAM)
+          <p className="text-xs text-slate-400 mt-2">
+            Formulasi 5W+1H Sektor 1–6 (Database)
           </p>
         </div>
 
-        {/* Card 2: Legal Outreach & JMS */}
+        {/* Card 2: Penkum & JMS D.IN.7 */}
         <div 
           onClick={() => onNavigateToTab('outreach-form')}
-          className="bg-[#151F33] border border-slate-800/90 hover:border-slate-700 rounded-2xl p-5 transition-all shadow-sm cursor-pointer group"
+          className="bg-[#111827] border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition-colors cursor-pointer group"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-sky-400 transition-colors">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider group-hover:text-sky-400 transition-colors">
               Penkum & JMS (D.IN.7)
             </span>
-            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              <BookOpen className="w-4 h-4" />
-            </div>
+            <BookOpen className="w-4 h-4 text-sky-400" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-white font-mono">
-              {outreachEntries.length}
-            </span>
-            <span className="text-xs text-sky-400 font-semibold">
-              Kegiatan
-            </span>
+            <span className="text-3xl font-bold text-white font-mono">{outreachEntries.length}</span>
+            <span className="text-xs text-sky-400 font-semibold">Kegiatan</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">
-            {outreachEntries.reduce((sum, o) => sum + (o.jumlah_peserta || 0), 0)} peserta terjangkau
+          <p className="text-xs text-slate-400 mt-2">
+            {outreachEntries.reduce((s, o) => s + (o.jumlah_peserta || 0), 0)} peserta terjangkau
           </p>
         </div>
 
-        {/* Card 3: Case Tracking (2026) */}
+        {/* Card 3: Live JAMPIDUM Case Stats */}
         <div 
           onClick={() => onNavigateToTab('case-stats')}
-          className="bg-[#151F33] border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-5 transition-all shadow-sm cursor-pointer group"
+          className="bg-[#111827] border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition-colors cursor-pointer group"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-amber-400 transition-colors">
-                Perkara & JAMPIDUM
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            </div>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:bg-amber-500/10 group-hover:text-amber-400 group-hover:border-amber-500/30 transition-all">
-              <Scale className="w-4 h-4" />
-            </div>
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider group-hover:text-emerald-400 transition-colors">
+              Perkara JAMPIDUM (2026)
+            </span>
+            <Scale className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-white font-mono">
-              {totalLid2026 + totalDik2026 + totalTut2026}
-            </span>
-            <span className="text-xs text-emerald-400 font-semibold">
-              Tahap (2026)
-            </span>
+            <span className="text-3xl font-bold text-white font-mono">{totalCasesAll}</span>
+            <span className="text-xs text-emerald-400 font-semibold">Perkara Terdaftar</span>
           </div>
-          <div className="text-[11px] text-slate-400 mt-2 flex items-center justify-between">
-            <span>SPDP: <b className="text-slate-200 font-mono">{totalLid2026}</b></span>
-            <span>Dik: <b className="text-slate-200 font-mono">{totalDik2026}</b></span>
-            <span>Tut: <b className="text-slate-200 font-mono">{totalTut2026}</b></span>
-          </div>
+          <p className="text-xs text-slate-400 mt-2">
+            {jampidumCases.length > 0 ? `Live API (${lastSyncTime || 'Terkini'})` : 'Tahapan Yustisial'}
+          </p>
         </div>
 
-        {/* Card 4: Territorial Status */}
-        <div className="bg-[#151F33] border border-slate-800/90 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Kondusivitas Wilayah
+        {/* Card 4: Territorial Monitoring */}
+        <div 
+          onClick={() => onNavigateToTab('outreach-form')}
+          className="bg-[#111827] border border-slate-800 hover:border-slate-700 rounded-2xl p-5 transition-colors cursor-pointer group"
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider group-hover:text-purple-400 transition-colors">
+              Wilayah Pengawasan
             </span>
-            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
-              <MapPin className="w-4 h-4" />
-            </div>
+            <MapPin className="w-4 h-4 text-purple-400" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold text-emerald-400 font-mono">
-              KONDUSIF
-            </span>
+            <span className="text-3xl font-bold text-emerald-400 font-mono">10</span>
+            <span className="text-xs text-slate-300 font-semibold">Kecamatan Aktif</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">
-            10 Kecamatan dalam pengawasan aktif
+          <p className="text-xs text-slate-400 mt-2">
+            Situasi Teritorial Aman Kondusif
           </p>
         </div>
       </div>
 
-      {/* 6 Core Sections Overview Cards */}
-      <div className="space-y-3">
+      {/* 3. Live Case Statistics (JAMPIDUM & Judicial Stages Matrix) */}
+      <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <Scale className="w-4 h-4 text-amber-400" />
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                Statistik Penanganan Perkara & Live JAMPIDUM (Tahun 2026)
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Data perkara pidana terintegrasi otomatis dari API JAMPIDUM Kejaksaan RI (Satker 22.08 Tabanan)
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => onNavigateToTab('case-stats')}
+              className="text-xs px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <span>Detail & Live Explorer</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Case Table / Breakdown */}
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[#0B1120] text-slate-400 font-semibold uppercase text-[11px] tracking-wider border-b border-slate-800">
+                <th className="py-3 px-4">Kategori Perkara</th>
+                <th className="py-3 px-4 text-center">SPDP / Lid</th>
+                <th className="py-3 px-4 text-center">Dik Kejaksaan (Tahap I)</th>
+                <th className="py-3 px-4 text-center">Dik Kepolisian (Tahap II)</th>
+                <th className="py-3 px-4 text-center">Penuntutan & Sidang</th>
+                <th className="py-3 px-4 text-center">Total Tahapan</th>
+                <th className="py-3 px-4">Catatan Perkembangan</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80 bg-[#111827]">
+              {currentStats.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-slate-400">
+                    Memuat data statistik perkara dari database & JAMPIDUM...
+                  </td>
+                </tr>
+              ) : (
+                currentStats.map((stat) => {
+                  const total =
+                    stat.stages.lid_spdp +
+                    stat.stages.dik_kejaksaan +
+                    stat.stages.dik_kepolisian +
+                    stat.stages.tut;
+                  return (
+                    <tr key={stat.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4 font-semibold text-slate-200">
+                        {stat.category}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-300">
+                        {stat.stages.lid_spdp}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-300">
+                        {stat.stages.dik_kejaksaan}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-300">
+                        {stat.stages.dik_kepolisian}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-emerald-400">
+                        {stat.stages.tut}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-amber-400 bg-slate-900/60">
+                        {total}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400 text-xs max-w-sm truncate">
+                        {stat.notes || 'Data terintegrasi JAMPIDUM'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 4. 6 Core Intelligence Sections (D.IN.1 s/d D.IN.6) */}
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-400" />
-            6 Sektor Laporan Papan Peta Intelijen
-          </h3>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+              6 Sektor Laporan Intelijen Yustisial
+            </h2>
+          </div>
           <span className="text-xs text-slate-400">
-            Klik kartu untuk mengisi atau melihat laporan
+            Klik tombol untuk menginput formulir 5W+1H
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {SECTIONS_CONFIG.map((sec) => {
+          {SECTIONS_CONFIG.filter((s) => s.id !== 'D.IN.7').map((sec) => {
             const count = sectionCounts[sec.id] || 0;
             const latestEntry = entries.find((e) => e.section === sec.id);
 
             return (
               <div
                 key={sec.id}
-                className="bg-[#151F33] border border-slate-800/80 hover:border-slate-700 rounded-2xl p-5 transition-all flex flex-col justify-between shadow-sm"
+                className="bg-[#111827] border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition-colors"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-xl bg-[#0B1120] border border-slate-800 text-amber-400">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-slate-900 text-amber-400 border border-slate-800">
                         {getSectionIcon(sec.iconName)}
                       </div>
                       <div>
-                        <span className="font-mono text-xs font-bold text-amber-400 px-2 py-0.5 bg-amber-500/10 rounded-md border border-amber-500/30">
+                        <span className="font-mono text-xs font-bold text-amber-400 px-2 py-0.5 bg-amber-500/10 rounded border border-amber-500/20">
                           {sec.code}
                         </span>
                         <span className="text-xs font-semibold text-slate-300 ml-2">
@@ -278,55 +402,43 @@ export default function DashboardView({
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-bold bg-[#0B1120] text-slate-200 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                    <span className="text-xs font-mono font-bold text-slate-300 bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">
                       {count} Laporan
                     </span>
                   </div>
 
-                  <h4 className="text-sm font-bold text-white leading-snug mt-1.5">
+                  <h3 className="text-sm font-bold text-white leading-snug">
                     {sec.name}
-                  </h4>
-                  <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">
                     {sec.description}
                   </p>
 
-                  {/* Latest Entry Snippet */}
+                  {/* Latest Entry Snippet if exists */}
                   {latestEntry && (
-                    <div className="mt-3.5 p-3 rounded-xl bg-[#0B1120]/80 border border-slate-800/80">
+                    <div className="mt-3 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
                       <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-                        <span className="font-mono text-amber-400 font-semibold">{latestEntry.no}</span>
+                        <span className="font-mono text-amber-400">{latestEntry.no}</span>
                         <span className="font-mono">{latestEntry.date}</span>
                       </div>
-                      <p className="text-xs text-slate-300 line-clamp-2 italic">
+                      <p className="text-slate-300 line-clamp-2 italic">
                         "{latestEntry.narrative}"
                       </p>
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">
-                    Kategori: {sec.defaultKeterangan.slice(0, 2).join(', ')}...
+                <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400 truncate max-w-[150px]">
+                    {sec.defaultKeterangan.slice(0, 2).join(', ')}
                   </span>
-                  <div className="flex items-center gap-1.5">
-                    {sec.id === 'D.IN.7' ? (
-                      <button
-                        onClick={() => onNavigateToTab('outreach-form')}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 border border-sky-500/30 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                        Input D.IN.7
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => onNavigateToForm(sec.id)}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                        Input Laporan
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => onNavigateToForm(sec.id)}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Input</span>
+                  </button>
                 </div>
               </div>
             );
@@ -334,108 +446,103 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* Two Column Section: Territorial Distribution & Recent Intelligence Feed */}
+      {/* 5. Two Columns: Territorial & Recent Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (5 cols): Territorial Status Tabanan */}
-        <div className="lg:col-span-5 bg-[#151F33] border border-slate-800 rounded-2xl p-5 shadow-sm">
+        {/* Territorial (5 cols) */}
+        <div className="lg:col-span-5 bg-[#111827] border border-slate-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-amber-400" />
-              Peta Teritorial Wilayah Tabanan
-            </h3>
-            <span className="text-[11px] text-slate-400 font-mono">10 Kecamatan</span>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                Peta Teritorial Tabanan
+              </h3>
+            </div>
+            <span className="text-xs text-slate-400 font-mono">10 Kecamatan</span>
           </div>
-
-          <p className="text-xs text-slate-400 mb-3">
-            Distribusi laporan intelijen dan kegiatan penyuluhan hukum di seluruh wilayah hukum Kabupaten Tabanan:
-          </p>
 
           <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
             {kecamatanData.map((kec) => (
               <div
                 key={kec.name}
-                onClick={() => setSelectedKecamatanFilter(selectedKecamatanFilter === kec.name ? 'Semua' : kec.name)}
-                className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                  selectedKecamatanFilter === kec.name
-                    ? 'bg-amber-500/10 border-amber-500/80 ring-1 ring-amber-500/40'
-                    : 'bg-[#0B1120]/70 border-slate-800/80 hover:border-slate-700'
+                onClick={() => setSelectedKecamatan(selectedKecamatan === kec.name ? 'Semua' : kec.name)}
+                className={`p-3 rounded-xl border transition-colors cursor-pointer flex items-center justify-between ${
+                  selectedKecamatan === kec.name
+                    ? 'bg-amber-500/10 border-amber-500/60'
+                    : 'bg-[#0B1120] border-slate-800 hover:border-slate-700'
                 }`}
               >
                 <div>
-                  <div className="font-semibold text-xs text-slate-200 flex items-center gap-2">
+                  <div className="font-semibold text-xs text-slate-200">
                     {kec.name}
-                    {selectedKecamatanFilter === kec.name && (
-                      <span className="text-[10px] bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded font-bold font-mono">
-                        TERPILIH
+                    {selectedKecamatan === kec.name && (
+                      <span className="text-[10px] bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded font-bold font-mono ml-2">
+                        FILTER
                       </span>
                     )}
                   </div>
                   <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-3">
-                    <span>Laporan D.IN: <b className="text-slate-300 font-mono">{kec.dInCount}</b></span>
+                    <span>Laporan: <b className="text-slate-300 font-mono">{kec.dInCount}</b></span>
                     <span>Penkum: <b className="text-slate-300 font-mono">{kec.penkumCount}</b></span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-slate-200 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                    {kec.total} Aktif
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    {kec.status}
-                  </span>
-                </div>
+                <span className="text-xs font-mono font-bold text-slate-300 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
+                  {kec.total} Aktif
+                </span>
               </div>
             ))}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-            <span>Filter saat ini: <b className="text-amber-400">{selectedKecamatanFilter}</b></span>
-            {selectedKecamatanFilter !== 'Semua' && (
+          {selectedKecamatan !== 'Semua' && (
+            <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+              <span className="text-slate-400">Filter: <b className="text-amber-400">{selectedKecamatan}</b></span>
               <button
-                onClick={() => setSelectedKecamatanFilter('Semua')}
-                className="text-amber-400 hover:underline cursor-pointer font-semibold"
+                onClick={() => setSelectedKecamatan('Semua')}
+                className="text-amber-400 hover:underline font-semibold cursor-pointer"
               >
                 Reset Filter
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Right Column (7 cols): Recent 5W+1H Intelligence Narrative Feed */}
-        <div className="lg:col-span-7 bg-[#151F33] border border-slate-800 rounded-2xl p-5 shadow-sm">
+        {/* Recent Intelligence Feed (7 cols) */}
+        <div className="lg:col-span-7 bg-[#111827] border border-slate-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-amber-400" />
-              Feed Laporan Intelijen Terkini (5W+1H)
-            </h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                Laporan Terkini (5W+1H)
+              </h3>
+            </div>
             <button
               onClick={() => onNavigateToTab('data-table')}
               className="text-xs text-amber-400 hover:underline flex items-center gap-1 cursor-pointer font-semibold"
             >
-              Lihat Master Data →
+              Lihat Semua Master Data →
             </button>
           </div>
 
           <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
             {filteredEntries.length === 0 ? (
-              <div className="text-center py-10 text-slate-400 text-xs">
-                Tidak ada laporan untuk filter kecamatan terpilih.
+              <div className="text-center py-12 text-slate-400 text-xs">
+                Belum ada data laporan untuk filter terpilih.
               </div>
             ) : (
               filteredEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="p-3.5 rounded-xl bg-[#0B1120]/80 border border-slate-800/80 hover:border-slate-700 transition-all"
+                  className="p-4 rounded-xl bg-[#0B1120] border border-slate-800 hover:border-slate-700 transition-colors"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                      <span className="font-mono text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                         {entry.section}
                       </span>
                       <span className="text-xs font-bold text-slate-200 font-mono">
                         {entry.no}
                       </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                         {entry.keterangan}
                       </span>
                     </div>
@@ -445,28 +552,21 @@ export default function DashboardView({
                         <Calendar className="w-3 h-3 text-slate-400" />
                         {entry.date}
                       </span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
                         {entry.classification || 'TERBATAS'}
                       </span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-300 leading-relaxed font-sans line-clamp-3">
+                  <p className="text-xs text-slate-300 leading-relaxed line-clamp-3">
                     {entry.narrative}
                   </p>
 
-                  <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1 text-slate-300">
-                        <MapPin className="w-3 h-3 text-amber-400" />
-                        {entry.location} ({entry.kecamatan})
-                      </span>
-                      {entry.officerName && (
-                        <span className="hidden sm:inline text-slate-400">
-                          • {entry.officerName}
-                        </span>
-                      )}
-                    </div>
+                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                    <span className="flex items-center gap-1 text-slate-300">
+                      <MapPin className="w-3 h-3 text-amber-400" />
+                      {entry.location} ({entry.kecamatan})
+                    </span>
                     <button
                       onClick={() => onViewEntryDetail(entry)}
                       className="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
@@ -479,77 +579,6 @@ export default function DashboardView({
               ))
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Case Statistics Quick Matrix Summary */}
-      <div className="bg-[#151F33] border border-slate-800 rounded-2xl p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div>
-            <h3 className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <Scale className="w-4 h-4 text-amber-400" />
-              Statistik Penanganan Perkara Khusus & Menonjol (Tahun 2026)
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Rekapitulasi tahapan Lid/SPDP, Dik Kejaksaan, Dik Kepolisian, dan Penuntutan (Tut)
-            </p>
-          </div>
-          <button
-            onClick={() => onNavigateToTab('case-stats')}
-            className="text-xs px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold flex items-center gap-1 cursor-pointer self-start sm:self-auto transition-colors"
-          >
-            Buka Editor Statistik Perkara →
-          </button>
-        </div>
-
-        <div className="overflow-x-auto rounded-xl border border-slate-800/80">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-800 bg-[#0B1120] text-slate-400 font-semibold uppercase text-[11px] tracking-wider">
-                <th className="py-3 px-3.5">Kategori Perkara</th>
-                <th className="py-3 px-3.5 text-center">Lid / SPDP</th>
-                <th className="py-3 px-3.5 text-center">Dik Kejaksaan (Tahap I)</th>
-                <th className="py-3 px-3.5 text-center">Dik Kepolisian (Tahap II)</th>
-                <th className="py-3 px-3.5 text-center">Penuntutan (Tut)</th>
-                <th className="py-3 px-3.5 text-center">Total Tahapan</th>
-                <th className="py-3 px-3.5">Catatan Perkembangan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/80 bg-[#151F33]/40">
-              {stats2026.map((stat) => {
-                const total =
-                  stat.stages.lid_spdp +
-                  stat.stages.dik_kejaksaan +
-                  stat.stages.dik_kepolisian +
-                  stat.stages.tut;
-                return (
-                  <tr key={stat.id} className="hover:bg-slate-800/50 transition-colors">
-                    <td className="py-3 px-3.5 font-semibold text-slate-200">
-                      {stat.category}
-                    </td>
-                    <td className="py-3 px-3.5 text-center font-mono font-bold text-slate-300">
-                      {stat.stages.lid_spdp}
-                    </td>
-                    <td className="py-3 px-3.5 text-center font-mono font-bold text-slate-300">
-                      {stat.stages.dik_kejaksaan}
-                    </td>
-                    <td className="py-3 px-3.5 text-center font-mono font-bold text-slate-300">
-                      {stat.stages.dik_kepolisian}
-                    </td>
-                    <td className="py-3 px-3.5 text-center font-mono font-bold text-emerald-400">
-                      {stat.stages.tut}
-                    </td>
-                    <td className="py-3 px-3.5 text-center font-mono font-bold text-amber-400 bg-[#0B1120]/50">
-                      {total}
-                    </td>
-                    <td className="py-3 px-3.5 text-slate-400 text-[11px] max-w-xs truncate">
-                      {stat.notes || '-'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

@@ -24,6 +24,7 @@ async function startServer() {
     try {
       const intelRes = await pool.query("SELECT COUNT(*) FROM intelligence_entries");
       const outreachRes = await pool.query("SELECT COUNT(*) FROM outreach_entries");
+      const caseStatsRes = await pool.query("SELECT COUNT(*) FROM case_statistics");
       res.json({
         status: "ok",
         engine: "Neon PostgreSQL",
@@ -31,6 +32,7 @@ async function startServer() {
         counts: {
           intelligence: parseInt(intelRes.rows[0].count, 10),
           outreach: parseInt(outreachRes.rows[0].count, 10),
+          caseStats: parseInt(caseStatsRes.rows[0].count, 10),
         },
         timestamp: new Date().toISOString(),
       });
@@ -67,6 +69,7 @@ async function startServer() {
           gdrive_file_id AS "gdriveFileId", 
           gdrive_file_url AS "photoUrl", 
           photo_caption AS "photoCaption", 
+          photos,
           created_at AS "createdAt", 
           updated_at AS "updatedAt"
         FROM intelligence_entries
@@ -101,9 +104,9 @@ async function startServer() {
           id, no_register, section_id, sektor_symbol, keterangan, narrative,
           event_date, report_date, location, kecamatan, classification,
           officer_name, source_confidence, status, gdrive_file_id, gdrive_file_url,
-          photo_caption, created_at, updated_at
+          photo_caption, photos, created_at, updated_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
         )
         ON CONFLICT (id) DO UPDATE SET
           no_register = EXCLUDED.no_register,
@@ -122,11 +125,15 @@ async function startServer() {
           gdrive_file_id = EXCLUDED.gdrive_file_id,
           gdrive_file_url = EXCLUDED.gdrive_file_url,
           photo_caption = EXCLUDED.photo_caption,
+          photos = EXCLUDED.photos,
           updated_at = EXCLUDED.updated_at
         RETURNING *;
       `;
 
-      const now = Date.now();
+      const now = new Date();
+      const primaryPhotoUrl = entry.photos && entry.photos.length > 0 ? entry.photos[0].url : (entry.photoUrl || null);
+      const primaryCaption = entry.photos && entry.photos.length > 0 ? (entry.photos[0].caption || entry.photoCaption || null) : (entry.photoCaption || null);
+
       const params = [
         entry.id,
         entry.no,
@@ -143,9 +150,10 @@ async function startServer() {
         entry.sourceConfidence || "A1",
         entry.status || "SELESAI",
         entry.gdriveFileId || null,
-        entry.photoUrl || null,
-        entry.photoCaption || null,
-        entry.createdAt || now,
+        primaryPhotoUrl,
+        primaryCaption,
+        entry.photos ? JSON.stringify(entry.photos) : null,
+        entry.createdAt ? new Date(entry.createdAt) : now,
         now,
       ];
 
@@ -196,6 +204,7 @@ async function startServer() {
           gdrive_file_id AS "gdriveFileId",
           gdrive_file_url AS "photoUrl",
           photo_caption AS "photoCaption",
+          photos,
           created_at AS "createdAt",
           updated_at AS "updatedAt"
         FROM outreach_entries
@@ -230,9 +239,9 @@ async function startServer() {
           id, no_kegiatan, triwulan, jenis_kegiatan, tema_kegiatan, waktu,
           tempat, kecamatan, jumlah_peserta, target_peserta, narasumber,
           materi_pokok, latitude, longitude, status, gdrive_file_id,
-          gdrive_file_url, photo_caption, created_at, updated_at
+          gdrive_file_url, photo_caption, photos, created_at, updated_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
         )
         ON CONFLICT (id) DO UPDATE SET
           no_kegiatan = EXCLUDED.no_kegiatan,
@@ -252,11 +261,15 @@ async function startServer() {
           gdrive_file_id = EXCLUDED.gdrive_file_id,
           gdrive_file_url = EXCLUDED.gdrive_file_url,
           photo_caption = EXCLUDED.photo_caption,
+          photos = EXCLUDED.photos,
           updated_at = EXCLUDED.updated_at
         RETURNING *;
       `;
 
-      const now = Date.now();
+      const now = new Date();
+      const primaryPhotoUrl = entry.photos && entry.photos.length > 0 ? entry.photos[0].url : (entry.photoUrl || null);
+      const primaryCaption = entry.photos && entry.photos.length > 0 ? (entry.photos[0].caption || entry.photoCaption || null) : (entry.photoCaption || null);
+
       const params = [
         entry.id,
         entry.no,
@@ -274,9 +287,10 @@ async function startServer() {
         entry.longitude || 115.1232,
         entry.status || "TERLAKSANA",
         entry.gdriveFileId || null,
-        entry.photoUrl || null,
-        entry.photoCaption || null,
-        entry.createdAt || now,
+        primaryPhotoUrl,
+        primaryCaption,
+        entry.photos ? JSON.stringify(entry.photos) : null,
+        entry.createdAt ? new Date(entry.createdAt) : now,
         now,
       ];
 
@@ -300,16 +314,190 @@ async function startServer() {
     }
   });
 
-  // 8. Reset Database
+  // 8. GET Case Statistics (from PostgreSQL)
+  app.get("/api/case-stats", async (req, res) => {
+    try {
+      const yearFilter = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+      let query = `
+        SELECT 
+          id, category, year, lid_spdp, dik_kejaksaan, dik_kepolisian, tut, notes, updated_at AS "updatedAt"
+        FROM case_statistics
+      `;
+      const params: any[] = [];
+      if (yearFilter) {
+        query += " WHERE year = $1";
+        params.push(yearFilter);
+      }
+      query += " ORDER BY year DESC, category ASC";
+      const result = await pool.query(query, params);
+      const rows = result.rows.map((r) => ({
+        id: r.id,
+        category: r.category,
+        year: r.year,
+        stages: {
+          lid_spdp: r.lid_spdp || 0,
+          dik_kejaksaan: r.dik_kejaksaan || 0,
+          dik_kepolisian: r.dik_kepolisian || 0,
+          tut: r.tut || 0,
+        },
+        notes: r.notes || "",
+        updatedAt: r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now(),
+      }));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("GET /api/case-stats error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 9. POST / Upsert Case Statistics (to PostgreSQL)
+  app.post("/api/case-stats", async (req, res) => {
+    try {
+      const item = req.body;
+      if (!item.id || !item.category || !item.year) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      const query = `
+        INSERT INTO case_statistics (
+          id, category, year, lid_spdp, dik_kejaksaan, dik_kepolisian, tut, notes, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id) DO UPDATE SET
+          category = EXCLUDED.category,
+          year = EXCLUDED.year,
+          lid_spdp = EXCLUDED.lid_spdp,
+          dik_kejaksaan = EXCLUDED.dik_kejaksaan,
+          dik_kepolisian = EXCLUDED.dik_kepolisian,
+          tut = EXCLUDED.tut,
+          notes = EXCLUDED.notes,
+          updated_at = EXCLUDED.updated_at
+        RETURNING *;
+      `;
+      const now = new Date();
+      const params = [
+        item.id,
+        item.category,
+        item.year,
+        item.stages?.lid_spdp || 0,
+        item.stages?.dik_kejaksaan || 0,
+        item.stages?.dik_kepolisian || 0,
+        item.stages?.tut || 0,
+        item.notes || null,
+        now,
+      ];
+      const result = await pool.query(query, params);
+      res.json({ success: true, entry: result.rows[0] });
+    } catch (err: any) {
+      console.error("POST /api/case-stats error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 10. GET Annual Targets
+  app.get("/api/annual-targets", async (req, res) => {
+    try {
+      const yearFilter = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+      let query = `
+        SELECT 
+          id,
+          program,
+          category,
+          year,
+          target_tahunan AS "targetTahunan",
+          realisasi_tahunan AS "realisasiTahunan",
+          satuan,
+          keterangan,
+          updated_at AS "updatedAt"
+        FROM annual_targets
+      `;
+      const params: any[] = [];
+      if (yearFilter) {
+        query += " WHERE year = $1";
+        params.push(yearFilter);
+      }
+      query += " ORDER BY year DESC, id ASC";
+      const result = await pool.query(query, params);
+      const rows = result.rows.map((r) => ({
+        id: r.id,
+        program: r.program,
+        category: r.category,
+        year: r.year,
+        targetTahunan: parseInt(r.targetTahunan || 0, 10),
+        realisasiTahunan: parseInt(r.realisasiTahunan || 0, 10),
+        satuan: r.satuan || 'Kegiatan',
+        keterangan: r.keterangan || '',
+        updatedAt: r.updatedAt ? Number(r.updatedAt) : Date.now(),
+      }));
+      res.json(rows);
+    } catch (err: any) {
+      console.error("GET /api/annual-targets error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 11. POST / Upsert Annual Target
+  app.post("/api/annual-targets", async (req, res) => {
+    try {
+      const item = req.body;
+      if (!item.id || !item.program || !item.year) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      const query = `
+        INSERT INTO annual_targets (
+          id, program, category, year, target_tahunan, realisasi_tahunan, satuan, keterangan, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id) DO UPDATE SET
+          program = EXCLUDED.program,
+          category = EXCLUDED.category,
+          year = EXCLUDED.year,
+          target_tahunan = EXCLUDED.target_tahunan,
+          realisasi_tahunan = EXCLUDED.realisasi_tahunan,
+          satuan = EXCLUDED.satuan,
+          keterangan = EXCLUDED.keterangan,
+          updated_at = EXCLUDED.updated_at
+        RETURNING *;
+      `;
+      const params = [
+        item.id,
+        item.program,
+        item.category || 'Penkum / JMS',
+        item.year,
+        Number(item.targetTahunan || 0),
+        Number(item.realisasiTahunan || 0),
+        item.satuan || 'Kegiatan',
+        item.keterangan || null,
+        Date.now(),
+      ];
+      const result = await pool.query(query, params);
+      res.json({ success: true, entry: result.rows[0] });
+    } catch (err: any) {
+      console.error("POST /api/annual-targets error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 12. DELETE Annual Target
+  app.delete("/api/annual-targets/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query("DELETE FROM annual_targets WHERE id = $1", [id]);
+      res.json({ success: true, id });
+    } catch (err: any) {
+      console.error("DELETE /api/annual-targets error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 13. Reset Database
   app.post("/api/db/reset", async (_req, res) => {
     try {
-      await pool.query("TRUNCATE TABLE intelligence_entries, outreach_entries RESTART IDENTITY;");
+      await pool.query("TRUNCATE TABLE intelligence_entries, outreach_entries, case_statistics, annual_targets RESTART IDENTITY;");
       await initializeDatabase();
       res.json({ success: true, message: "Database reset to official default state" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
+
 
   // -------------------------------------------------------------
   // EXTERNAL JAMPIDUM PERKARA API (Live API for Case Statistics)
