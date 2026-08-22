@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import https from "https";
-import { pool, initializeDatabase } from "./db";
+import { pool, initializeDatabase } from "./db.js";
 
 export const apiRouter = Router();
 
