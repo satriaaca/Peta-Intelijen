@@ -8,8 +8,10 @@ import {
   User as FirebaseUser 
 } from 'firebase/auth';
 import { AppUser } from '../types';
-import firebaseConfig from '../../firebase-applet-config.json';
 import { verifyEmailWhitelist } from './emailWhitelistService';
+
+// Parse Firebase config from a single env variable
+const firebaseConfig = JSON.parse(import.meta.env.VITE_FIREBASE_CONFIG);
 
 // Initialize Firebase App
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
