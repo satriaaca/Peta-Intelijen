@@ -134,7 +134,7 @@ export default function DetailModal({ entry, onClose }: DetailModalProps) {
 
             <div className="p-3.5 rounded-xl bg-[#0F172A]/50 border border-slate-800 flex items-start gap-3">
               <MapPin className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <span className="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">
                   Tempat & Wilayah Hukum
                 </span>
@@ -144,6 +144,11 @@ export default function DetailModal({ entry, onClose }: DetailModalProps) {
                 <div className="text-[11px] text-slate-400 mt-0.5">
                   Kecamatan {entry.kecamatan}, Kab. Tabanan
                 </div>
+                {entry.latitude && entry.longitude && (
+                  <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    📍 Lat: {entry.latitude.toFixed(4)}, Lng: {entry.longitude.toFixed(4)}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -221,7 +226,7 @@ export default function DetailModal({ entry, onClose }: DetailModalProps) {
                 <div className="flex items-center gap-2 pt-1 overflow-x-auto">
                   {photosList.map((p, idx) => (
                     <div
-                      key={p.id || idx}
+                      key={p.id ? `${p.id}-${idx}` : `detail-thumb-${idx}`}
                       onClick={() => setActivePhotoIdx(idx)}
                       className={`w-14 h-10 rounded-lg overflow-hidden border cursor-pointer shrink-0 transition-all ${
                         activePhotoIdx === idx 

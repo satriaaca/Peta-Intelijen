@@ -1,4 +1,4 @@
-export type SectionId = 'D.IN.1' | 'D.IN.3' | 'D.IN.4' | 'D.IN.5' | 'D.IN.6' | 'D.IN.7';
+export type SectionId = 'D.IN.1' | 'D.IN.2' | 'D.IN.3' | 'D.IN.4' | 'D.IN.5' | 'D.IN.6' | 'D.IN.7';
 
 export interface SectionMeta {
   id: SectionId;
@@ -29,6 +29,8 @@ export interface IntelligenceEntry {
   reportDate?: string; // YYYY-MM-DD
   location: string; // Specific location / village
   kecamatan: string; // Kecamatan di Kab. Tabanan
+  latitude?: number;
+  longitude?: number;
   classification?: 'RAHASIA' | 'TERBATAS' | 'BIASA';
   officerName?: string; // Petugas Intelijen
   photoUrl?: string; // Base64 or image URL (primary)
@@ -71,19 +73,23 @@ export interface OutreachEntry {
   updatedAt: number;
 }
 
-export type CaseCategory = 'Korupsi' | 'Narkotika' | 'Terorisme' | 'Perkara Menarik Perhatian Masyarakat';
+// Data Grafik Jampidum: Hanya Korupsi dan Narkotika
+export type CaseCategory = 'Korupsi' | 'Narkotika';
 
 export interface CaseStageCounts {
-  lid_spdp: number; // Penyelidikan / SPDP
-  dik_kejaksaan: number; // Penyidikan Kejaksaan / Tahap I
-  dik_kepolisian: number; // Penyidikan Kepolisian / Tahap II
-  tut: number; // Penuntutan & Eksekusi
+  lid_spdp: number; // SPDP (Surat Pemberitahuan Dimulainya Penyidikan)
+  dik_kejaksaan: number; // Tahap I (Penerimaan Berkas Perkara)
+  p21?: number; // P-21 (Berkas Dinyatakan Lengkap)
+  dik_kepolisian: number; // Tahap II (Penyerahan Tersangka dan Barang Bukti)
+  pelimpahan_pn?: number; // Pelimpahan ke Pengadilan Negeri
+  tut: number; // Putusan / Eksekusi (Inkracht / P-48)
 }
 
 export interface CaseStatEntry {
-  id: string; // format: case-stats:{category}:{year}
+  id: string; // format: case-stats:{category}:{year} or case-stats:{category}:{year}:{month}
   category: CaseCategory;
   year: number;
+  month?: number; // 1 - 12 (Opsional untuk filter bulanan)
   stages: CaseStageCounts;
   notes?: string;
   updatedAt: number;

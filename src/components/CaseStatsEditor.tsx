@@ -38,8 +38,6 @@ interface CaseStatsEditorProps {
 export const CASE_CATEGORIES: CaseCategory[] = [
   'Korupsi',
   'Narkotika',
-  'Terorisme',
-  'Perkara Menarik Perhatian Masyarakat',
 ];
 
 export default function CaseStatsEditor({
@@ -74,7 +72,7 @@ export default function CaseStatsEditor({
   const [filterPenyidik, setFilterPenyidik] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
-  // Local form state for all 4 categories for the selected year
+  // Local form state for all categories for the selected year
   const getStatsForCategoryWithYear = (year: number, cat: CaseCategory) => {
     const found = caseStats.find((s) => s.year === year && s.category === cat);
     if (found) {
@@ -104,8 +102,6 @@ export default function CaseStatsEditor({
   }>>({
     Korupsi: getStatsForCategoryWithYear(selectedYear, 'Korupsi'),
     Narkotika: getStatsForCategoryWithYear(selectedYear, 'Narkotika'),
-    Terorisme: getStatsForCategoryWithYear(selectedYear, 'Terorisme'),
-    'Perkara Menarik Perhatian Masyarakat': getStatsForCategoryWithYear(selectedYear, 'Perkara Menarik Perhatian Masyarakat'),
   });
 
   // Handle year change
@@ -114,8 +110,6 @@ export default function CaseStatsEditor({
     setLocalFormData({
       Korupsi: getStatsForCategoryWithYear(year, 'Korupsi'),
       Narkotika: getStatsForCategoryWithYear(year, 'Narkotika'),
-      Terorisme: getStatsForCategoryWithYear(year, 'Terorisme'),
-      'Perkara Menarik Perhatian Masyarakat': getStatsForCategoryWithYear(year, 'Perkara Menarik Perhatian Masyarakat'),
     });
     // Trigger fetch for that year
     loadJampidumData(year, satkerCode);
@@ -716,7 +710,7 @@ export default function CaseStatsEditor({
                       const cat = classifyJampidumCase(item);
 
                       return (
-                        <tr key={item.id_perkara || idx} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={`${item.id_perkara || 'case'}-${idx}`} className="hover:bg-slate-800/40 transition-colors">
                           <td className="py-3 px-3.5 text-center font-mono text-slate-400">
                             {idx + 1}
                           </td>

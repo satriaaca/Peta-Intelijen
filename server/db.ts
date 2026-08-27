@@ -68,6 +68,8 @@ export async function initializeDatabase() {
           report_date DATE,
           location TEXT NOT NULL,
           kecamatan VARCHAR(100) NOT NULL,
+          latitude DOUBLE PRECISION,
+          longitude DOUBLE PRECISION,
           classification VARCHAR(30) DEFAULT 'TERBATAS',
           officer_name VARCHAR(255),
           source_confidence VARCHAR(10) DEFAULT 'A1',
@@ -80,6 +82,8 @@ export async function initializeDatabase() {
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         ALTER TABLE intelligence_entries ADD COLUMN IF NOT EXISTS photos JSONB;
+        ALTER TABLE intelligence_entries ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+        ALTER TABLE intelligence_entries ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
         CREATE INDEX IF NOT EXISTS idx_intel_section ON intelligence_entries(section_id);
         CREATE INDEX IF NOT EXISTS idx_intel_date ON intelligence_entries(event_date DESC);
       `);

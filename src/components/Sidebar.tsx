@@ -1,24 +1,31 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   Shield, 
   LayoutDashboard, 
-  FileEdit, 
-  Megaphone, 
-  Scale, 
+  MapPin,
+  UserCheck, 
   BarChart3, 
-  Table2, 
-  Presentation, 
+  CreditCard,
   LogOut, 
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   AlertTriangle,
-  Users
+  Users,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { AppUser } from '../types';
+import { useTheme } from '../context/ThemeContext';
 
-export type ActiveTab = 'dashboard' | 'entry-form' | 'outreach-form' | 'case-stats' | 'charts' | 'data-table' | 'official-board';
+export type ActiveTab = 
+  | 'dashboard' 
+  | 'map'
+  | 'pora'
+  | 'case-stats' 
+  | 'tik-cards'
+  | 'entry-form' 
+  | 'symbol-catalog';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -27,6 +34,7 @@ interface SidebarProps {
   onLogout: () => void;
   onResetData: () => void;
   onOpenWhitelistModal?: () => void;
+  onOpenSymbolCatalog?: () => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   isMobileOpen: boolean;
@@ -49,63 +57,44 @@ export default function Sidebar({
   totalEntriesCount = 0,
   totalOutreachCount = 0
 }: SidebarProps) {
+  const { theme, toggleTheme } = useTheme();
   const [showConfirmReset, setShowConfirmReset] = useState(false);
 
-  const navGroups = [
-    {
-      group: 'PETA & LAPORAN YUSTISIAL',
-      items: [
-        { 
-          id: 'dashboard' as ActiveTab, 
-          label: 'Ringkasan & Peta', 
-          icon: LayoutDashboard,
-          badge: totalEntriesCount > 0 ? String(totalEntriesCount) : undefined
-        },
-        { 
-          id: 'entry-form' as ActiveTab, 
-          label: 'Form Laporan D.IN (1–6)', 
-          icon: FileEdit 
-        },
-      ]
+
+  // 5 Menu Utama sesuai alur user
+  const navItems = [
+    { 
+      id: 'dashboard' as ActiveTab, 
+      label: 'Dashboard',
+      sublabel: 'Statistik & Tabel D.IN.1',
+      icon: LayoutDashboard,
+      badge: totalEntriesCount > 0 ? String(totalEntriesCount) : undefined
     },
-    {
-      group: 'PENERANGAN HUKUM & YUSTISIAL',
-      items: [
-        { 
-          id: 'outreach-form' as ActiveTab, 
-          label: 'Penkum & JMS (D.IN.7)', 
-          icon: Megaphone,
-          badge: totalOutreachCount > 0 ? String(totalOutreachCount) : undefined
-        },
-        { 
-          id: 'case-stats' as ActiveTab, 
-          label: 'Statistik Perkara & JAMPIDUM', 
-          icon: Scale,
-          live: true
-        },
-      ]
+    { 
+      id: 'map' as ActiveTab, 
+      label: 'Peta Intelijen', 
+      sublabel: 'D.IN.2–D.IN.6, CSV & Cetak',
+      icon: MapPin 
     },
-    {
-      group: 'ANALISIS & LAPORAN',
-      items: [
-        { 
-          id: 'charts' as ActiveTab, 
-          label: 'Grafik & Tren', 
-          icon: BarChart3 
-        },
-        { 
-          id: 'data-table' as ActiveTab, 
-          label: 'Data Tabel Terpadu', 
-          icon: Table2 
-        },
-        { 
-          id: 'official-board' as ActiveTab, 
-          label: 'Papan Slide / Cetak', 
-          icon: Presentation,
-          highlight: true
-        },
-      ]
-    }
+    { 
+      id: 'pora' as ActiveTab, 
+      label: 'PORA', 
+      sublabel: 'Data Orang Asing & PDF',
+      icon: UserCheck,
+      live: true
+    },
+    { 
+      id: 'case-stats' as ActiveTab, 
+      label: 'Data Grafik (Jampidum)', 
+      sublabel: 'Korupsi & Narkotika',
+      icon: BarChart3 
+    },
+    { 
+      id: 'tik-cards' as ActiveTab, 
+      label: 'KARTU TIK', 
+      sublabel: 'D.IN.12–D.IN.16 & CSV',
+      icon: CreditCard 
+    },
   ];
 
   const handleSelectTab = (tab: ActiveTab) => {
@@ -123,34 +112,34 @@ export default function Sidebar({
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Persistent Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-[#0B1120] border-r border-slate-800/80 text-slate-200 transition-all duration-300 ease-in-out ${
-          isCollapsed ? 'w-20' : 'w-64'
+        className={`fixed top-0 bottom-0 left-0 z-50 h-screen flex flex-col justify-between overflow-hidden select-none bg-[#0B1120] border-r border-slate-800/90 text-slate-200 transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'w-16' : 'w-64'
         } ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* Brand & Emblem Header */}
-        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/80 bg-[#0F172A]">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-amber-500/20 shrink-0">
-              <Shield className="w-6 h-6 text-slate-950" />
+        {/* Brand & Header */}
+        <div className="h-16 px-3 flex items-center justify-between border-b border-slate-800/80 bg-[#0F172A] shrink-0">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-amber-500/20 shrink-0">
+              <Shield className="w-5 h-5 text-slate-950" />
             </div>
             
             {!isCollapsed && (
               <div className="min-w-0 transition-opacity duration-200">
                 <div className="text-[10px] font-bold tracking-wider text-amber-400 uppercase truncate">
-                  /* SATYA ADHI WICAKSANA */
+                  KEJAKSAAN RI
                 </div>
                 <div className="text-xs font-bold text-white truncate">
-                  Peta Intelijen Kejari Tabanan
+                  Intelijen Kejari Tabanan
                 </div>
               </div>
             )}
           </div>
 
-          {/* Desktop Collapse Toggle */}
+          {/* Desktop Collapse Button */}
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -161,110 +150,91 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Navigation Groups */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-5">
-          {navGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1">
-              {!isCollapsed ? (
-                <div className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  {group.group}
+        {/* 5 Clean Navigation Menus */}
+        <div className="flex-1 flex flex-col justify-start gap-2 px-2.5 py-4 overflow-y-auto">
+          <div className="px-2 text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+            {!isCollapsed ? 'MENU UTAMA INTELIJEN' : 'MENU'}
+          </div>
+
+          {navItems.map((item, idx) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleSelectTab(item.id)}
+                title={isCollapsed ? `${item.label} — ${item.sublabel}` : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                  isActive
+                    ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/25 font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 border border-transparent hover:border-slate-700/60'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg shrink-0 ${
+                  isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-900 text-slate-300 border border-slate-800'
+                }`}>
+                  <Icon className="w-4 h-4" />
                 </div>
-              ) : (
-                <div className="h-px bg-slate-800 my-3 mx-2" />
-              )}
 
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleSelectTab(item.id)}
-                    title={isCollapsed ? item.label : undefined}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                      isActive
-                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-bold'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-slate-950' : 'text-slate-400 group-hover:text-slate-200'}`} />
-
-                    {!isCollapsed && (
-                      <span className="truncate flex-1 text-left">
-                        {item.label}
-                      </span>
-                    )}
-
-                    {!isCollapsed && item.live && (
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold flex items-center gap-1 ${
-                        isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                      }`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        API
-                      </span>
-                    )}
-
-                    {!isCollapsed && item.badge && (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                        isActive ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300 border border-slate-700'
-                      }`}>
-                        {item.badge}
-                      </span>
-                    )}
-
-                    {!isCollapsed && item.highlight && !isActive && (
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-
-        {/* User Account / Footer Actions */}
-        <div className="p-3 border-t border-slate-800/80 bg-[#0F172A]/80">
-          {!isCollapsed && currentUser ? (
-            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 mb-2">
-              <div className="flex items-center gap-2.5">
-                {currentUser.photoURL ? (
-                  <img
-                    src={currentUser.photoURL}
-                    alt={currentUser.name}
-                    className="w-8 h-8 rounded-full border border-amber-500/50 object-cover shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-xs shrink-0">
-                    {currentUser.name.charAt(0)}
+                {!isCollapsed && (
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className={`text-xs truncate ${isActive ? 'text-slate-950 font-bold' : 'text-slate-100 font-semibold'}`}>
+                      {item.label}
+                    </div>
+                    <div className={`text-[10px] truncate ${isActive ? 'text-slate-900/80 font-medium' : 'text-slate-400 font-normal'}`}>
+                      {item.sublabel}
+                    </div>
                   </div>
                 )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-slate-200 truncate flex items-center gap-1.5">
-                    <span className="truncate">{currentUser.name}</span>
-                    {currentUser.email && (
-                      <span className="px-1 py-0.2 rounded bg-blue-500/10 text-blue-400 text-[8px] font-mono border border-blue-500/30 shrink-0">
-                        SSO
-                      </span>
-                    )}
+
+                {!isCollapsed && item.live && (
+                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold flex items-center gap-0.5 ${
+                    isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
+                  }`}>
+                    WNA
+                  </span>
+                )}
+
+                {!isCollapsed && item.badge && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold leading-none ${
+                    isActive ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-amber-400 border border-slate-700'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Compact Footer (User Info & Reset/Logout) */}
+        <div className="p-2.5 border-t border-slate-800/80 bg-[#0F172A]/90 shrink-0">
+          {!isCollapsed && currentUser ? (
+            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-xs shrink-0">
+                  {currentUser.name ? currentUser.name.charAt(0) : 'P'}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-200 truncate leading-none">
+                    {currentUser.name}
                   </div>
-                  <div className="text-[10px] text-amber-400 font-mono truncate">
-                    {currentUser.email || currentUser.role}
+                  <div className="text-[10px] text-amber-400/90 font-mono truncate mt-0.5">
+                    {currentUser.role}
                   </div>
                 </div>
               </div>
 
-              {/* Admin / Whitelist Manage Button */}
               {onOpenWhitelistModal && (
                 <button
                   type="button"
                   onClick={onOpenWhitelistModal}
-                  className="mt-2 w-full py-1.5 px-2 bg-slate-800/80 hover:bg-slate-800 text-amber-400 border border-slate-700/80 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  title="Kelola Whitelist SSO"
+                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition"
                 >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Izin Email SSO (Whitelist)</span>
+                  <Users className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -273,22 +243,43 @@ export default function Sidebar({
           <div className={`flex items-center gap-1.5 ${isCollapsed ? 'flex-col justify-center' : 'justify-between'}`}>
             <button
               type="button"
+              onClick={toggleTheme}
+              title={theme === 'light' ? 'Beralih ke Mode Gelap' : 'Beralih ke Mode Terang'}
+              className={`p-2 rounded-xl text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer ${
+                isCollapsed ? 'w-9 h-9' : 'flex-1 gap-1.5 text-xs font-semibold'
+              }`}
+            >
+              {theme === 'light' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                  {!isCollapsed && <span>Mode Terang</span>}
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-amber-400 shrink-0" />
+                  {!isCollapsed && <span>Mode Gelap</span>}
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowConfirmReset(true)}
               title="Reset Database ke Data Standar"
               className={`p-2 rounded-xl text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer ${
-                isCollapsed ? 'w-10 h-10' : 'flex-1 gap-2 text-xs font-semibold'
+                isCollapsed ? 'w-9 h-9' : 'flex-1 gap-1.5 text-xs font-semibold'
               }`}
             >
               <RotateCcw className="w-4 h-4 shrink-0" />
-              {!isCollapsed && <span>Reset Data</span>}
+              {!isCollapsed && <span>Reset</span>}
             </button>
 
             <button
               type="button"
               onClick={onLogout}
-              title="Keluar / Ganti Petugas"
+              title="Keluar Akun"
               className={`p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer ${
-                isCollapsed ? 'w-10 h-10' : 'flex-1 gap-2 text-xs font-semibold'
+                isCollapsed ? 'w-9 h-9' : 'flex-1 gap-1.5 text-xs font-semibold'
               }`}
             >
               <LogOut className="w-4 h-4 shrink-0" />
@@ -334,3 +325,4 @@ export default function Sidebar({
     </>
   );
 }
+

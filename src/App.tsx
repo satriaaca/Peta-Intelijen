@@ -26,14 +26,18 @@ import LoginGate from './components/LoginGate';
 import Sidebar, { ActiveTab } from './components/Sidebar';
 import TopNavbar from './components/TopNavbar';
 import DashboardView from './components/DashboardView';
+import IntelligenceMapView from './components/IntelligenceMapView';
+import PoraView from './components/PoraView';
+import CaseStatsView from './components/CaseStatsView';
+import TikCardView from './components/TikCardView';
 import EntryFormView from './components/EntryFormView';
 import OutreachFormView from './components/OutreachFormView';
-import CaseStatsEditor from './components/CaseStatsEditor';
-import ChartsView from './components/ChartsView';
 import DataTableView from './components/DataTableView';
 import DetailModal from './components/DetailModal';
 import OfficialReportModal from './components/OfficialReportModal';
 import WhitelistManagerModal from './components/WhitelistManagerModal';
+import ForeignerFormView from './components/ForeignerFormView';
+import SectorSymbolCatalogModal from './components/SectorSymbolCatalogModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
@@ -218,6 +222,43 @@ export default function App() {
               onNavigateToTab={setActiveTab}
               onViewEntryDetail={(entry) => setDetailEntry(entry)}
               onSaveCaseStat={handleSaveCaseStat}
+              onDeleteEntry={handleDeleteEntry}
+            />
+          )}
+
+          {activeTab === 'map' && (
+            <IntelligenceMapView
+              entries={entries}
+              onViewDetail={(entry) => setDetailEntry(entry)}
+              onAddNewEntry={(loc, lat, lng) => {
+                setSelectedSectionForForm('D.IN.2');
+                setActiveTab('entry-form');
+              }}
+              onOpenCatalogModal={() => setActiveTab('symbol-catalog')}
+              onImportEntries={async (newItems) => {
+                for (const item of newItems) {
+                  await handleSaveEntry(item);
+                }
+              }}
+            />
+          )}
+
+          {activeTab === 'pora' && (
+            <PoraView
+              currentUser={currentUser}
+            />
+          )}
+
+          {activeTab === 'case-stats' && (
+            <CaseStatsView
+              caseStats={caseStats}
+              onSaveCaseStat={handleSaveCaseStat}
+            />
+          )}
+
+          {activeTab === 'tik-cards' && (
+            <TikCardView
+              currentUser={currentUser}
             />
           )}
 
@@ -233,29 +274,24 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'symbol-catalog' && (
+            <div className="space-y-4">
+              <SectorSymbolCatalogModal
+                isOpen={true}
+                onClose={() => setActiveTab('map')}
+                onSelectSymbol={(badge) => {
+                  setSelectedSectionForForm(badge.sectionCode);
+                  setActiveTab('entry-form');
+                }}
+              />
+            </div>
+          )}
+
           {activeTab === 'outreach-form' && (
             <OutreachFormView
               outreachEntries={outreachEntries}
               onSaveOutreach={handleSaveOutreach}
               onDeleteOutreach={handleDeleteOutreach}
-              annualTargets={annualTargets}
-              onSaveAnnualTarget={handleSaveAnnualTarget}
-              onDeleteAnnualTarget={handleDeleteAnnualTarget}
-            />
-          )}
-
-          {activeTab === 'case-stats' && (
-            <CaseStatsEditor
-              caseStats={caseStats}
-              onSaveCaseStat={handleSaveCaseStat}
-            />
-          )}
-
-          {activeTab === 'charts' && (
-            <ChartsView
-              caseStats={caseStats}
-              outreachEntries={outreachEntries}
-              entries={entries}
               annualTargets={annualTargets}
               onSaveAnnualTarget={handleSaveAnnualTarget}
               onDeleteAnnualTarget={handleDeleteAnnualTarget}

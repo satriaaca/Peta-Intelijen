@@ -86,20 +86,12 @@ export default function ChartsView({
     const narkotikaTotal = yrStats
       .filter((s) => s.category === 'Narkotika')
       .reduce((sum, s) => sum + s.stages.lid_spdp + s.stages.dik_kejaksaan + s.stages.dik_kepolisian + s.stages.tut, 0);
-    const terorismeTotal = yrStats
-      .filter((s) => s.category === 'Terorisme')
-      .reduce((sum, s) => sum + s.stages.lid_spdp + s.stages.dik_kejaksaan + s.stages.dik_kepolisian + s.stages.tut, 0);
-    const pmhTotal = yrStats
-      .filter((s) => s.category === 'Perkara Menarik Perhatian Masyarakat')
-      .reduce((sum, s) => sum + s.stages.lid_spdp + s.stages.dik_kejaksaan + s.stages.dik_kepolisian + s.stages.tut, 0);
 
     return {
       year: String(yr),
       Korupsi: korupsiTotal,
       Narkotika: narkotikaTotal,
-      Terorisme: terorismeTotal,
-      'Perkara Menarik': pmhTotal,
-      total: korupsiTotal + narkotikaTotal + terorismeTotal + pmhTotal,
+      total: korupsiTotal + narkotikaTotal,
     };
   });
 

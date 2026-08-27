@@ -54,6 +54,8 @@ apiRouter.get("/intelligence", async (req: Request, res: Response) => {
         TO_CHAR(report_date, 'YYYY-MM-DD') AS "reportDate", 
         location, 
         kecamatan, 
+        latitude,
+        longitude,
         classification, 
         officer_name AS "officerName", 
         source_confidence AS "sourceConfidence", 
@@ -94,11 +96,11 @@ apiRouter.post("/intelligence", async (req: Request, res: Response) => {
     const query = `
       INSERT INTO intelligence_entries (
         id, no_register, section_id, sektor_symbol, keterangan, narrative,
-        event_date, report_date, location, kecamatan, classification,
+        event_date, report_date, location, kecamatan, latitude, longitude, classification,
         officer_name, source_confidence, status, gdrive_file_id, gdrive_file_url,
         photo_caption, photos, created_at, updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
       )
       ON CONFLICT (id) DO UPDATE SET
         no_register = EXCLUDED.no_register,
@@ -110,6 +112,8 @@ apiRouter.post("/intelligence", async (req: Request, res: Response) => {
         report_date = EXCLUDED.report_date,
         location = EXCLUDED.location,
         kecamatan = EXCLUDED.kecamatan,
+        latitude = EXCLUDED.latitude,
+        longitude = EXCLUDED.longitude,
         classification = EXCLUDED.classification,
         officer_name = EXCLUDED.officer_name,
         source_confidence = EXCLUDED.source_confidence,
@@ -137,6 +141,8 @@ apiRouter.post("/intelligence", async (req: Request, res: Response) => {
       entry.reportDate || entry.date,
       entry.location || "",
       entry.kecamatan || "Tabanan",
+      entry.latitude != null ? entry.latitude : null,
+      entry.longitude != null ? entry.longitude : null,
       entry.classification || "TERBATAS",
       entry.officerName || "",
       entry.sourceConfidence || "A1",

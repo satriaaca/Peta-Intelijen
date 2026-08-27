@@ -872,7 +872,7 @@ export default function OutreachFormView({
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
                     {photos.map((photo, index) => (
                       <div 
-                        key={photo.id || index} 
+                        key={photo.id ? `${photo.id}-${index}` : `photo-${index}`} 
                         className={`p-2 rounded-xl bg-[#0B1120] border transition-all relative flex flex-col justify-between ${
                           index === 0 ? 'border-amber-500/60 ring-1 ring-amber-500/30' : 'border-slate-800'
                         }`}
@@ -1216,7 +1216,7 @@ export default function OutreachFormView({
                       <div className="px-3 pt-2.5 flex items-center gap-1.5 overflow-x-auto">
                         {photosList.map((p, pIdx) => (
                           <div
-                            key={p.id || pIdx}
+                            key={p.id ? `${p.id}-${pIdx}` : `thumb-${pIdx}`}
                             onClick={() => openEntryLightbox(item, pIdx)}
                             className="w-12 h-10 rounded-md overflow-hidden border border-slate-800 shrink-0 cursor-pointer hover:border-amber-400 transition-colors"
                           >
@@ -1323,7 +1323,7 @@ export default function OutreachFormView({
               <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
                 {lightboxState.photos.map((photo, pIdx) => (
                   <div
-                    key={photo.id || pIdx}
+                    key={photo.id ? `${photo.id}-${pIdx}` : `modal-photo-${pIdx}`}
                     onClick={() => setLightboxState({ ...lightboxState, currentIndex: pIdx })}
                     className={`w-16 h-12 rounded-lg overflow-hidden border-2 cursor-pointer shrink-0 transition-all ${
                       lightboxState.currentIndex === pIdx 

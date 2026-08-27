@@ -5,10 +5,13 @@ import {
   Presentation, 
   Plus, 
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 import { SectionId } from '../types';
+import { useTheme } from '../context/ThemeContext';
 
 interface TopNavbarProps {
   activeTab: ActiveTab;
@@ -25,8 +28,10 @@ export default function TopNavbar({
   onNavigateToForm,
   onOpenReportModal,
 }: TopNavbarProps) {
+  const { theme, toggleTheme } = useTheme();
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
+
 
   useEffect(() => {
     const updateTime = () => {
@@ -58,43 +63,43 @@ export default function TopNavbar({
     switch (activeTab) {
       case 'dashboard':
         return {
-          title: 'Ringkasan & Peta Intelijen',
-          subtitle: 'Pemetaan Situasi Wilayah & Matriks Ancaman',
+          title: 'Dashboard Intelijen Kejari Tabanan',
+          subtitle: 'Statistik Penkum & Luhkum, Sektor D.IN.2–6 & Tabel D.IN.1 (CRUD)',
         };
-      case 'entry-form':
+      case 'map':
         return {
-          title: 'Input & Manajemen Laporan D.IN (1–6)',
-          subtitle: 'Formulir Standar Intelijen Berdasarkan Prinsip 5W+1H',
+          title: 'Peta Intelijen Geospasial Tabanan',
+          subtitle: 'Marker D.IN.2 s/d D.IN.6 (74 Simbol), Input CSV & Cetak Peta',
         };
-      case 'outreach-form':
+      case 'pora':
         return {
-          title: 'Penerangan Hukum & JMS (D.IN.7)',
-          subtitle: 'Pelaksanaan Program Edukasi & Sosialisasi Hukum Masyarakat',
+          title: 'PORA — Pengawasan Orang Asing (D.IN.10)',
+          subtitle: 'Biodata WNA, Monitoring Izin Tinggal, Paspor & Hasil PDF Resmi',
         };
       case 'case-stats':
         return {
-          title: 'Statistik Perkara & Integrasi JAMPIDUM',
-          subtitle: 'Siklus Perkara Yustisial & Data Real-Time Kejaksaan RI',
+          title: 'Data Grafik Perkara (Data Jampidum)',
+          subtitle: 'Statistik Perkara Korupsi & Narkotika (SPDP s/d Putusan) — Filter Bulan & Tahun',
         };
-      case 'charts':
+      case 'tik-cards':
         return {
-          title: 'Grafik Visual & Tren Analitik',
-          subtitle: 'Komposisi Bidang, Sebaran Wilayah, dan Progres Penanganan',
+          title: 'Bank Data & KARTU TIK (D.IN.12 s/d D.IN.16)',
+          subtitle: 'Biodata, Catatan Intelijen Kriminal, Terpidana — Opsi Input CSV & Format PDF',
         };
-      case 'data-table':
+      case 'entry-form':
         return {
-          title: 'Data Tabel Terpadu Intelijen',
-          subtitle: 'Katalog Pencarian, Filter Wilayah, dan Ekspor Rekap',
+          title: 'Formulir Laporan Sektor (D.IN.2 s/d D.IN.6)',
+          subtitle: 'Input dan Kelola Laporan Intelijen Sektor Yustisial Tabanan',
         };
-      case 'official-board':
+      case 'symbol-catalog':
         return {
-          title: 'Papan Intelijen (Slide Presentasi)',
-          subtitle: 'Mode Tampilan Paparan Resmi untuk Pimpinan',
+          title: 'Katalog 74 Simbol Resmi Sektor Intelijen',
+          subtitle: 'Standar Keputusan Jaksa Agung RI Nomor KEP-135/A/JA/05/2019',
         };
       default:
         return {
-          title: 'Sistem Informasi Intelijen',
-          subtitle: 'Kejaksaan Negeri Tabanan',
+          title: 'SIPPI — Papan Peta Intelijen Kejari Tabanan',
+          subtitle: 'Seksi Intelijen Kejaksaan Negeri Tabanan (SATYA ADHI WICAKSANA)',
         };
     }
   };
@@ -140,6 +145,30 @@ export default function TopNavbar({
           <span>{dateStr}</span>
           <span className="text-slate-200 font-bold">{timeStr}</span>
         </div>
+
+        {/* Theme Toggle Button (Light/Dark Mode) */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+            theme === 'light'
+              ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-sm'
+              : 'bg-slate-800 text-amber-400 border-slate-700 hover:bg-slate-700'
+          }`}
+          title={theme === 'light' ? 'Beralih ke Mode Gelap' : 'Beralih ke Mode Terang'}
+        >
+          {theme === 'light' ? (
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-600 fill-amber-500/20" />
+              <span className="hidden sm:inline">Tema Terang</span>
+            </>
+          ) : (
+            <>
+              <Moon className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Tema Gelap</span>
+            </>
+          )}
+        </button>
 
         {/* Quick Action: New Report */}
         {activeTab !== 'entry-form' && (
